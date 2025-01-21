@@ -6,6 +6,8 @@ from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
 import sys
+import time
+from .token_tracker import TokenUsage, APIResponse, get_token_tracker
 
 STATUS_FILE = '.cursorrules'
 
@@ -62,10 +64,13 @@ def query_llm(plan_content, user_prompt=None, file_content=None):
     client = create_llm_client()
     
     # Combine prompts
-    system_prompt = """You are an AI assistant helping with project planning and execution.
-Please analyze the provided project plan and status, then address the user's specific query or request."""
+    system_prompt = """"""
     
-    combined_prompt = f"""Project Plan and Status:
+    combined_prompt = f"""You are working on a multi-agent context. The executor is the one who actually does the work. And you are the planner. Now the executor is asking you for help. Please analyze the provided project plan and status, then address the executor's specific query or request.
+
+You need to think like a founder. Prioritize agility and don't over-engineer. Think deep. Try to foresee challenges and derisk earlier. If opportunity sizing or probing experiments can reduce risk with low cost, instruct the executor to do them.
+    
+Project Plan and Status:
 ======
 {plan_content}
 ======
@@ -89,6 +94,7 @@ We will do the actual changes in the .cursorrules file.
 """
 
     try:
+        start_time = time.time()
         response = client.chat.completions.create(
             model="o1",
             messages=[
@@ -98,6 +104,34 @@ We will do the actual changes in the .cursorrules file.
             response_format={"type": "text"},
             reasoning_effort="low"
         )
+        thinking_time = time.time() - start_time
+        
+        # Track token usage
+        token_usage = TokenUsage(
+            prompt_tokens=response.usage.prompt_tokens,
+            completion_tokens=response.usage.completion_tokens,
+            total_tokens=response.usage.total_tokens,
+            reasoning_tokens=response.usage.completion_tokens_details.reasoning_tokens if hasattr(response.usage, 'completion_tokens_details') else None
+        )
+        
+        # Calculate cost
+        cost = get_token_tracker().calculate_openai_cost(
+            token_usage.prompt_tokens,
+            token_usage.completion_tokens,
+            "o1"
+        )
+        
+        # Track the request
+        api_response = APIResponse(
+            content=response.choices[0].message.content,
+            token_usage=token_usage,
+            cost=cost,
+            thinking_time=thinking_time,
+            provider="openai",
+            model="o1"
+        )
+        get_token_tracker().track_request(api_response)
+        
         return response.choices[0].message.content
     except Exception as e:
         print(f"Error querying LLM: {e}", file=sys.stderr)
@@ -129,7 +163,7 @@ def main():
         print('========================================================')
         print(response)
         print('========================================================')
-        print('Now please do the actual changes in the .cursorrules file. And then read the content of the file to decide what to do next.')
+        print('Now please do the actual changes in the .cursorrules file. And then switch to the executor role, and read the content of the file to decide what to do next.')
     else:
         print("Failed to get response from LLM")
         sys.exit(1)
