@@ -32,7 +32,7 @@ def copy_tools_directory():
 
 def setup_env_file():
     """Set up the .env file with API key if provided"""
-    llm_api_key = '{{ cookiecutter.llm_api_key }}'
+    llm_api_key = '{{ cookiecutter.llm_api_key.default }}'  # Access the default value
     if llm_api_key:
         with open('.env', 'w') as f:
             f.write(f'LLM_API_KEY={llm_api_key}\n')
