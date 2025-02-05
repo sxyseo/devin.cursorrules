@@ -5,13 +5,11 @@ import platform
 def setup_env_file():
     """Set up the .env file with API key if provided"""
     llm_api_key = '{{ cookiecutter.llm_api_key.default }}'  # Access the default value
+    
+    # Add API key if provided
     if llm_api_key:
-        with open('.env', 'w') as f:
-            f.write(f'LLM_API_KEY={llm_api_key}\n')
-    else:
-        # Copy .env.example if exists
-        if os.path.exists('.env.example'):
-            shutil.copy2('.env.example', '.env')
+        with open('.env', 'a') as f:  # Append mode
+            f.write(f'\nLLM_API_KEY={llm_api_key}\n')
 
 def main():
     print("\nInitial debug info:")
