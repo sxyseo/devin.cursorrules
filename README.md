@@ -42,6 +42,8 @@ Devin impressed many by acting like an intern who writes its own plan, updates t
 
    The AI automatically decides how and when to use them (just like Devin).
 
+   Note: For screenshot verification features, Playwright browsers will be installed automatically when you first use the feature.
+
 4.	Self-Evolution
 
    Whenever you correct the AI, it can update its "lessons learned" in .cursorrules. Over time, it accumulates project-specific knowledge and gets smarter with each iteration. It makes AI a coachable and coach-worthy partner.

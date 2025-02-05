@@ -67,6 +67,8 @@ analysis = query_llm(
     image_path=screenshot_path
 )
 ```
+
+Note: When you first use the screenshot verification feature, Playwright browsers will be installed automatically.
 {% endif %}
 
 ## AI Assistant Configuration
