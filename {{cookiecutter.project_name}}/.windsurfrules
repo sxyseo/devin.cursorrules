@@ -76,6 +76,8 @@ Title: This is the title of the search result
 Snippet: This is a snippet of the search result
 ```
 
+# Lessons
+
 ## User Specified Lessons
 
 - You have a python venv in ./venv.
@@ -83,11 +85,6 @@ Snippet: This is a snippet of the search result
 - Read the file before you try to edit it.
 - Use LLM to perform flexible text understanding tasks. First test on a few files. After success, make it parallel.
 
-# Lessons
-
 ## Windsurf learned
 
-- For search results, ensure proper handling of different character encodings (UTF-8) for international queries
-- Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
-- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
-- Use 'gpt-4o' as the model name for OpenAI's GPT-4 with vision capabilities 
+Consult the `scratchpad.md` file for lessons.

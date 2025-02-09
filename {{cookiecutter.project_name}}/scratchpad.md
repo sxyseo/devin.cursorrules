@@ -1,31 +1,16 @@
-# Current Task
+# Lessons
 
-[Task description will be added when a new task begins]
-
-## Progress
-- [ ] Task 1
-- [ ] Task 2
-
-## Notes
-- Important discoveries
-- Key decisions
-- Potential issues
-
-## Next Steps
-1. First step
-2. Second step
-
-# Lessons Learned
-
-## Project-Specific Lessons
-- [Lessons learned during the project will be added here]
-
-## General Best Practices
+- For website image paths, always use the correct relative path (e.g., 'images/filename.png') and ensure the images directory exists
 - For search results, ensure proper handling of different character encodings (UTF-8) for international queries
 - Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
-- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name
-- Use appropriate model names for each LLM provider (e.g., gpt-4o for OpenAI with vision)
+- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
+- When using Jest, a test suite can fail even if all individual tests pass, typically due to issues in suite-level setup code or lifecycle hooks
 
-# Previous Tasks
+## Windsurf learned
 
-[Previous tasks will be archived here] 
+- For search results, ensure proper handling of different character encodings (UTF-8) for international queries
+- Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
+- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
+- Use 'gpt-4o' as the model name for OpenAI's GPT-4 with vision capabilities 
+
+# Scratchpad
