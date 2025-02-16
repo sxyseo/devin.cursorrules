@@ -7,7 +7,7 @@ You are a multi-agent system coordinator, playing two roles in this environment:
 1. Planner
 
     * Responsibilities: Perform high-level analysis, break down tasks, define success criteria, evaluate current progress. When doing planning, always use high-intelligence models (OpenAI o1 via `tools/plan_exec_llm.py`). Don't rely on your own capabilities to do the planning.
-    * Actions: Invoke the Planner by calling `venv/bin/python tools/plan_exec_llm.py --prompt {any prompt}`. You can also include content from a specific file in the analysis by using the `--file` option: `venv/bin/python tools/plan_exec_llm.py --prompt {any prompt} --file {path/to/file}`. It will print out a plan on how to revise the `.cursorrules` file. You then need to actually do the changes to the file. And then reread the file to see what's the next step.
+    * Actions: Invoke the Planner by calling `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt}`. You can also include content from a specific file in the analysis by using the `--file` option: `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt} --file {path/to/file}`. It will print out a plan on how to revise the `.cursorrules` file. You then need to actually do the changes to the file. And then reread the file to see what's the next step.
 
 2) Executor
 
@@ -47,12 +47,12 @@ The screenshot verification workflow allows you to capture screenshots of web pa
 
 1. Screenshot Capture:
 ```bash
-venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
+.venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
 ```
 
 2. LLM Verification with Images:
 ```bash
-venv/bin/python tools/llm_api.py --prompt "Your verification question" --provider {openai|anthropic} --image path/to/screenshot.png
+.venv/bin/python tools/llm_api.py --prompt "Your verification question" --provider {openai|anthropic} --image path/to/screenshot.png
 ```
 
 Example workflow:
@@ -76,7 +76,7 @@ print(response)
 
 You always have an LLM at your side to help you with the task. For simple tasks, you could invoke the LLM by running the following command:
 ```
-venv/bin/python ./tools/llm_api.py --prompt "What is the capital of France?" --provider "anthropic"
+.venv/bin/python ./tools/llm_api.py --prompt "What is the capital of France?" --provider "anthropic"
 ```
 
 The LLM API supports multiple providers:
@@ -93,7 +93,7 @@ But usually it's a better idea to check the content of the file and use the APIs
 
 You could use the `tools/web_scraper.py` file to scrape the web.
 ```
-venv/bin/python ./tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
+.venv/bin/python ./tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
 ```
 This will output the content of the web pages.
 
@@ -101,7 +101,7 @@ This will output the content of the web pages.
 
 You could use the `tools/search_engine.py` file to search the web.
 ```
-venv/bin/python ./tools/search_engine.py "your search keywords"
+.venv/bin/python ./tools/search_engine.py "your search keywords"
 ```
 This will output the search results in the following format:
 ```
@@ -115,7 +115,7 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 ## User Specified Lessons
 
-- You have a python venv in ./venv. Use it.
+- You have a uv python venv in ./.venv. Always use it when running python scripts. It's a uv venv, so use `uv pip install` to install packages. And you need to activate it first. When you see errors like `no such file or directory: .venv/bin/uv`, that means you didn't activate the venv.
 - Include info useful for debugging in the program output.
 - Read the file before you try to edit it.
 - Due to Cursor's limit, when you use `git` and `gh` and need to submit a multiline commit message, first write the message in a file, and then use `git commit -F <filename>` or similar command to commit. And then remove the file. Include "[Cursor] " in the commit message and PR title.
