@@ -121,12 +121,24 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
     Args:
         prompt (str): The text prompt to send
         client: The LLM client instance
-        model (str, optional): The model to use
+        model (str, optional): The model to use. Special handling for OpenAI's o1 model:
+            - Uses different response format
+            - Has reasoning_effort parameter
+            - Is the only model that provides reasoning_tokens in its response
         provider (str): The API provider to use
         image_path (str, optional): Path to an image file to attach
         
     Returns:
         Optional[str]: The LLM's response or None if there was an error
+        
+    Note:
+        Token tracking behavior varies by provider:
+        - OpenAI-style APIs (OpenAI, Azure, DeepSeek, Local): Full token tracking
+        - Anthropic: Has its own token tracking system (input/output tokens)
+        - Gemini: Token tracking not yet implemented
+        
+        Reasoning tokens are only available when using OpenAI's o1 model.
+        For all other models, reasoning_tokens will be None.
     """
     if client is None:
         client = create_llm_client(provider)
@@ -187,7 +199,7 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
-                reasoning_tokens=response.usage.completion_tokens_details.reasoning_tokens if hasattr(response.usage, 'completion_tokens_details') else None
+                reasoning_tokens=response.usage.reasoning_tokens if model.lower().startswith("o") else None  # Only checks if model starts with "o", e.g., o1, o1-preview, o1-mini, o3, etc. Can update this logic to specific models in the future.
             )
             
             # Calculate cost
