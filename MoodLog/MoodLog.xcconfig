@@ -1,0 +1,10 @@
+//
+// MoodLog.xcconfig
+//
+
+// 设置标准架构（iPhone设备使用arm64）
+ARCHS = $(ARCHS_STANDARD)
+VALID_ARCHS = arm64
+
+// iOS部署目标
+IPHONEOS_DEPLOYMENT_TARGET = 15.0 

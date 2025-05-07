@@ -1,0 +1,106 @@
+// General
+"Settings" = "設定";
+"Timeline" = "タイムライン";
+"Activity" = "アクティビティ";
+"Report" = "レポート";
+"Cancel" = "キャンセル";
+"Save" = "保存";
+"Delete" = "削除";
+"Edit" = "編集";
+"Done" = "完了";
+"Close" = "閉じる";
+
+// Days of Week
+"Sun" = "日";
+"Mon" = "月";
+"Tue" = "火";
+"Wed" = "水";
+"Thu" = "木";
+"Fri" = "金";
+"Sat" = "土";
+
+// Mood Types
+"Happy" = "幸せ";
+"Sad" = "悲しい";
+"Neutral" = "普通";
+"Energetic" = "元気";
+"Mindful" = "注意深い";
+
+// Timeline View
+"Today" = "今日";
+"New Entry" = "新規記録";
+"How are you feeling?" = "気分はどうですか？";
+"Write something..." = "何か書いてください...";
+"No entries for this day" = "この日の記録はありません";
+"Add your first entry" = "最初の記録を追加";
+
+// Activity View
+"Monthly Overview" = "月間概要";
+"Monthly Mood Statistics" = "月間気分統計";
+"Mood Distribution" = "気分の分布";
+"Most Common Mood" = "最も多い気分";
+"Average Mood" = "平均的な気分";
+"Total Entries" = "総記録数";
+"No entries this month" = "今月の記録はありません";
+
+// Report View
+"Yearly Overview" = "年間概要";
+"Mood Trends" = "気分の傾向";
+"Year Stats" = "年間統計";
+"Monthly Breakdown" = "月別内訳";
+"No entries this year" = "今年の記録はありません";
+
+// Settings View
+"Account" = "アカウント";
+"Log In" = "ログイン";
+"Subscribe to Pro" = "プロ版を購読";
+"Preferences" = "設定";
+"Language" = "言語";
+"Notifications" = "通知";
+"Reminder" = "リマインダー";
+"Security" = "セキュリティ";
+"Lock Entries" = "記録をロック";
+"Backup" = "バックアップ";
+"About" = "情報";
+"Version & Info" = "バージョンと情報";
+"Privacy Policy" = "プライバシーポリシー";
+"Terms of Use" = "利用規約";
+"Write Review" = "レビューを書く";
+"Choose Language" = "言語を選択";
+
+// Pro Features
+"Pro" = "プロ";
+"Upgrade to Pro" = "プロ版にアップグレード";
+"Unlock premium features and enhance your journal experience" = "プレミアム機能を解除して、日記体験を向上させる";
+"Unlimited entries" = "無制限の記録";
+"Record as many moments as you want" = "好きなだけ瞬間を記録できます";
+"Multiple images" = "複数の画像";
+"Add up to 10 images per entry" = "1つの記録に最大10枚の画像を追加";
+"Cloud backup" = "クラウドバックアップ";
+"Never lose your memories" = "思い出を失うことはありません";
+"Advanced themes" = "高度なテーマ";
+"Customize your journal experience" = "日記体験をカスタマイズ";
+"Detailed analytics" = "詳細な分析";
+"Get insights into your mood patterns" = "気分パターンに関する洞察を得る";
+"$4.99 / Month" = "¥650 / 月";
+"$39.99 / Year (Save 33%)" = "¥5,200 / 年（33%オフ）";
+"Restore Purchases" = "購入を復元";
+
+// 月份选择
+"Choose Month" = "月を選択";
+
+// 编辑功能
+"Edit Entry" = "記録を編集";
+"Update" = "更新";
+"Delete Entry" = "記録を削除";
+"Are you sure you want to delete this entry? This action cannot be undone." = "この記録を削除してもよろしいですか？この操作は元に戻せません。";
+
+// 年度报告
+"Year Report" = "年間レポート";
+"Annual Mood Statistics" = "年間気分統計";
+"Monthly Trends" = "月別傾向";
+"No mood records this year" = "今年の気分記録はありません";
+
+// 年份选择
+"Choose Year" = "年を選択";
+"This Year" = "今年";

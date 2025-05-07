@@ -1,0 +1,201 @@
+# Instructions
+
+During your interaction with the user, if you find anything reusable in this project (e.g. version of a library, model name), especially about a fix to a mistake you made or a correction you received, you should take note in the `Lessons` section in the `.cursorrules` file so you will not make the same mistake again.
+
+You should also use the `.cursorrules` file as a Scratchpad to organize your thoughts. Especially when you receive a new task, you should first review the content of the Scratchpad, clear old different task if necessary, first explain the task, and plan the steps you need to take to complete the task. You can use todo markers to indicate the progress, e.g.
+[X] Task 1
+[ ] Task 2
+
+Also update the progress of the task in the Scratchpad when you finish a subtask.
+Especially when you finished a milestone, it will help to improve your depth of task accomplishment to use the Scratchpad to reflect and plan.
+The goal is to help you maintain a big picture as well as the progress of the task. Always refer to the Scratchpad when you plan the next step.
+
+# Tools
+
+Note all the tools are in python3. So in the case you need to do batch processing, you can always consult the python files and write your own script.
+
+## Screenshot Verification
+
+The screenshot verification workflow allows you to capture screenshots of web pages and verify their appearance using LLMs. The following tools are available:
+
+1. Screenshot Capture:
+```bash
+venv/bin/python3 tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
+```
+
+2. LLM Verification with Images:
+```bash
+venv/bin/python3 tools/llm_api.py --prompt "Your verification question" --provider {openai|anthropic} --image path/to/screenshot.png
+```
+
+Example workflow:
+```python
+from screenshot_utils import take_screenshot_sync
+from llm_api import query_llm
+
+# Take a screenshot
+
+screenshot_path = take_screenshot_sync('https://example.com', 'screenshot.png')
+
+# Verify with LLM
+
+response = query_llm(
+    "What is the background color and title of this webpage?",
+    provider="openai",  # or "anthropic"
+    image_path=screenshot_path
+)
+print(response)
+```
+
+## LLM
+
+You always have an LLM at your side to help you with the task. For simple tasks, you could invoke the LLM by running the following command:
+```
+venv/bin/python3 ./tools/llm_api.py --prompt "What is the capital of France?" --provider "anthropic"
+```
+
+The LLM API supports multiple providers:
+- OpenAI (default, model: gpt-4o)
+- Azure OpenAI (model: configured via AZURE_OPENAI_MODEL_DEPLOYMENT in .env file, defaults to gpt-4o-ms)
+- DeepSeek (model: deepseek-chat)
+- Anthropic (model: claude-3-sonnet-20240229)
+- Gemini (model: gemini-pro)
+- Local LLM (model: Qwen/Qwen2.5-32B-Instruct-AWQ)
+
+But usually it's a better idea to check the content of the file and use the APIs in the `tools/llm_api.py` file to invoke the LLM if needed.
+
+## Web browser
+
+You could use the `tools/web_scraper.py` file to scrape the web.
+```bash
+venv/bin/python3 ./tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
+```
+This will output the content of the web pages.
+
+## Search engine
+
+You could use the `tools/search_engine.py` file to search the web.
+```bash
+venv/bin/python3 ./tools/search_engine.py "your search keywords"
+```
+This will output the search results in the following format:
+```
+URL: https://example.com
+Title: This is the title of the search result
+Snippet: This is a snippet of the search result
+```
+If needed, you can further use the `web_scraper.py` file to scrape the web page content.
+
+# Lessons
+
+## User Specified Lessons
+
+- You have a python venv in ./venv. Always use (activate) it when doing python development. First, to check whether 'uv' is available, use `which uv`. If that's the case, first activate the venv, and then use `uv pip install` to install packages. Otherwise, fall back to `pip`.
+- Due to Cursor's limit, when you use `git` and `gh` and need to submit a multiline commit message, first write the message in a file, and then use `git commit -F <filename>` or similar command to commit. And then remove the file. Include "[Cursor] " in the commit message and PR title.
+
+## Cursor learned
+
+- For search results, ensure proper handling of different character encodings (UTF-8) for international queries
+- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
+- Use 'gpt-4o' as the model name for OpenAI's GPT-4 with vision capabilities
+- When searching for recent news, use the current year (2025) instead of previous years, or simply use the "recent" keyword to get the latest information
+- 在SwiftUI中，不同平台API可能有差异，例如navigationBarHidden在macOS中不可用，应使用更通用的方法
+- SwiftUI 中处理 onChange(of:perform:) 方法在 iOS 17.0 中被弃用，新版本需要使用 onChange(of:) { oldValue, newValue in } 语法
+- 在使用 ForEach 迭代字典数据时，应先将字典转换为数组形式（例如使用 .map 方法）
+- 多语言支持在实际应用中通常需要应用重启才能完全生效，临时切换可以使用UserDefaults.standard.set([languageCode], forKey: "AppleLanguages")
+- 在实现本地化功能时，应将字符串文件放在语言特定的.lproj文件夹中，例如"zh-Hans.lproj"、"en.lproj"、"ja.lproj"
+- 使用NSLocalizedString和String扩展可以简化本地化字符串的使用
+- 创建辅助类如LocalizationHelper可以集中管理本地化相关功能，提高代码可维护性
+- 本地化不仅限于界面文本，还应包括日期格式、数字格式等与地区相关的内容
+
+# Scratchpad
+
+## 任务：MoodLog 心情日记应用开发
+
+任务目标：参照提供的界面设计，实现完整的MoodLog心情日记应用，包括UI和基本功能。
+
+### 已完成功能：
+[X] 检查现有项目结构，了解SwiftUI项目组织方式
+[X] 设计数据模型
+  [X] 创建JournalEntry模型
+  [X] 创建MoodType枚举
+  [X] 实现简单的内存存储机制
+[X] 实现应用状态管理
+  [X] 创建AppState类
+  [X] 实现基本UI框架和标签页导航
+[X] 实现"时间线"视图（日历视图）
+  [X] 创建月份选择器
+  [X] 实现周视图日期选择器
+  [X] 添加日期高亮和选择功能
+  [X] 实现日期选择器功能
+[X] 开发日记编辑功能
+  [X] 创建日记编辑界面
+  [X] 实现情绪选择器组件
+  [X] 添加图片上传选项
+  [X] 实现键盘处理功能
+[X] 实现日记条目显示功能
+  [X] 创建日记条目卡片
+  [X] 实现日记详情视图
+  [X] 添加时间格式化功能
+[X] 实现"活动"视图（月报告）
+  [X] 创建月历视图
+  [X] 实现心情统计功能
+  [X] 添加月份导航功能
+[X] 实现"报告"视图（年报告）
+  [X] 设计年度心情网格
+  [X] 实现年度心情统计
+  [X] 添加年份选择功能
+[X] 实现"设置"视图
+  [X] 设计设置菜单界面
+  [X] 实现Pro功能展示
+  [X] 添加各种设置选项
+[X] 添加多语言支持
+  [X] 创建AppLanguage枚举
+  [X] 实现语言选择器UI
+  [X] 添加语言切换功能
+  [X] 使用UserDefaults存储语言偏好
+[X] 完善多语言功能
+  [X] 创建本地化字符串文件
+  [X] 实现LocalizationHelper类
+  [X] 更新所有界面使用本地化字符串
+  [X] 优化语言切换体验
+
+### 当前进度
+已经实现了应用的所有主要功能模块，包括：
+1. 时间线视图 - 用于日常记录和查看心情
+2. 活动视图 - 显示月度心情报告和统计
+3. 报告视图 - 提供年度心情数据分析
+4. 设置视图 - 应用设置和Pro功能订阅
+5. 多语言支持 - 支持中文、英文和日文切换
+
+完成了本地化实现，现在应用中的所有界面文本都通过本地化字符串文件提供。用户可以在设置中切换语言，所有界面元素会根据选择的语言显示相应文本。实现了LocalizationHelper类简化本地化管理，并优化了界面设计以适应不同语言的文本长度变化。
+
+采用了简单的内存存储机制，目前数据在应用重启后会丢失。用户界面设计已经完成，符合现代iOS应用的UI/UX规范。
+
+### 接下来的优化和扩展
+1. 实现CoreData持久化存储
+   - 设计CoreData模型
+   - 实现数据迁移功能
+   - 添加数据加密保护
+
+2. 完善安全功能
+   - 实现生物识别解锁
+   - 添加密码保护机制
+   - 实现伪装模式
+
+3. 进一步完善多语言支持
+   - 优化语言切换流程
+   - 添加更多语言支持
+   - 实现实时语言切换功能
+
+4. 数据分析和可视化增强
+   - 添加更多统计图表
+   - 实现心情趋势分析
+   - 支持导出数据功能
+
+5. 改进用户体验
+   - 添加主题定制
+   - 实现通知和提醒
+   - 添加小组件支持
+
+
