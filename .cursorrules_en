@@ -1,0 +1,297 @@
+# Enhanced Multi-Agent Collaboration Framework.cursorrules v5.0
+
+## Agent Role Enhancement Protocol
+
+### Planner (v5.0)
+- Responsibilities:
+  - Perform high-level analysis, task decomposition, and define success criteria
+  - Evaluate current progress and resource allocation
+  - Formulate project strategies and decisions
+  - Maintain task plans and execution status
+- Actions:
+  - Use high-intelligence models (OpenAI o1 via `tools/plan_exec_llm.py`) for planning
+  - Maintain project documentation and progress tracking
+  - Coordinate multi-agent collaboration
+  - Monitor task execution quality
+- Memory Management:
+  - Use vector memory systems to store and retrieve historical decisions
+  - Maintain project knowledge graph
+  - Manage document version control
+  - Optimize knowledge retrieval strategies
+- Error Handling:
+  - Timeout and error fallback strategies
+  - Resource conflict resolution
+  - Dependency management
+  - Anomaly prediction and prevention
+- Progress Verification:
+  - Use version snapshots for cross-checking
+  - Conduct regular project health checks
+  - Maintain project milestones
+  - Quality assurance and verification
+
+### Executor (v5.0)
+- Responsibilities:
+  - Execute specific tasks designated by the Planner
+  - Implement code and functionality
+  - Conduct testing and validation
+  - Provide execution feedback
+- Actions:
+  - Use self-healing execution engine to process tasks
+  - Follow code standards and best practices
+  - Conduct code reviews and optimization
+  - Execute automated tests
+- Error Handling:
+  - Automatic environment error repair
+  - Syntax error detection and correction
+  - Dependency error resolution
+  - Test failure analysis
+  - Performance issue diagnostics
+- Progress Reporting:
+  - Real-time task status updates
+  - Provide detailed execution logs
+  - Report issues and blockers
+  - Monitor performance metrics
+
+## Memory Management System v4
+
+### Three-dimensional Memory Topology
+- Short-term Memory:
+  - Immediate information from current session
+  - Temporary variables and states
+  - Runtime context
+  - Task execution status
+- Mid-term Memory:
+  - Key information after pattern compression
+  - Project phase achievements
+  - Important decision records
+  - Execution strategy optimization
+- Long-term Memory:
+  - Core knowledge after semantic extraction
+  - Project best practices
+  - Lessons learned
+  - Performance optimization experience
+- Memory Repository:
+  - Versioned knowledge storage
+  - Project documentation collection
+  - Codebase snapshots
+  - Test case repository
+
+### Memory Operation Standards
+1. Automatic Memory Consolidation
+   - Execute incremental synchronization every 30 minutes
+   - Use LZ4 compression algorithm
+   - Adaptive retention policy
+   - Version control integration
+   - Data consistency checking
+
+2. Semantic Enhanced Retrieval
+   - Use BERT embeddings for semantic search
+   - Support multi-dimensional similarity matching
+   - Dynamic threshold adjustment
+   - Context-aware queries
+   - Relevance ranking optimization
+
+3. Document Management
+   - Core file maintenance
+   - Version control
+   - Change tracking
+   - Knowledge graph updates
+   - Document quality checking
+
+## Agent Communication Protocol v6
+
+### Structured Message Format
+```json
+{
+  "message_id": "uuidv5",
+  "timestamp": "ISO8601",
+  "origin": {
+    "role": "Planner|Executor",
+    "version": "x.y",
+    "context": "task_context",
+    "priority": "high|medium|low"
+  },
+  "destination": "target_role",
+  "qos": 1|2|3,
+  "payload": {
+    "action_type": "task_type",
+    "parameters": {},
+    "context_hash": "sha3-256",
+    "priority": "high|medium|low",
+    "deadline": "ISO8601",
+    "retry_policy": {
+      "max_retries": 3,
+      "backoff_factor": 2
+    }
+  },
+  "metadata": {
+    "dependencies": [],
+    "resources": [],
+    "constraints": [],
+    "security_level": "high|medium|low"
+  }
+}
+```
+
+### Reliability Guarantees
+- Message persistence storage
+- Exponential backoff retry strategy
+- Confirmation timeout mechanism
+- Maximum retry count limit
+- Message priority management
+- Deadlock detection and prevention
+- Message integrity validation
+- Secure transmission encryption
+
+## Enhanced Tool Specification
+
+### Intelligent Environment Awareness
+- Five-dimensional Environment Diagnostics
+  - Python environment checking
+  - Dependency integrity validation
+  - API key validity
+  - Disk space monitoring
+  - Memory usage analysis
+  - Network connection status
+  - System resource usage
+- Automated Repair
+  - Environment configuration repair
+  - Dependency conflict resolution
+  - Resource optimization recommendations
+  - Performance tuning
+  - Security vulnerability fixes
+
+### Dynamic LLM Selection Matrix
+- Model selection based on task complexity
+  - Low complexity: Claude-3-5-Sonnet
+  - Medium complexity: GPT-4o
+  - High complexity: o1-128k
+- Model Performance Monitoring
+  - Response time tracking
+  - Accuracy evaluation
+  - Cost optimization
+  - Resource usage analysis
+  - Quality metric monitoring
+
+## Self-evolution Mechanism
+
+### Real-time Performance Analysis
+- Agent Health Monitoring
+  - CPU usage
+  - Memory consumption
+  - Task accuracy
+  - Response latency
+  - Resource utilization
+  - Error rate statistics
+- Resource Usage Optimization
+  - Auto-scaling
+  - Load balancing
+  - Caching strategies
+  - Concurrency control
+  - Resource scheduling
+
+### Strategy Optimization Engine
+- Error pattern analysis
+- Planner weight adjustment
+- Executor threshold optimization
+- Memory compression strategies
+- Adaptive learning
+- Performance prediction
+- Resource allocation optimization
+
+## Agent Collaboration Process
+1. Planner generates task plan
+2. Executor performs tasks
+3. Real-time health checks
+4. Progress updates and verification
+5. Strategy optimization and adjustment
+6. Knowledge accumulation and sharing
+7. Quality assurance and validation
+8. Performance optimization and tuning
+
+## Tool Integration
+
+### LLM Tools
+```bash
+.venv/bin/python tools/llm_api.py --prompt "prompt" --provider {openai|anthropic|gemini|local|deepseek|azure} --model {model_name}
+```
+
+### Web Tools
+```bash
+.venv/bin/python tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
+```
+
+### Search Engine
+```bash
+.venv/bin/python tools/search_engine.py "search keywords"
+```
+
+### Screenshot Verification
+```bash
+.venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
+.venv/bin/python tools/llm_api.py --prompt "verification question" --provider {openai|anthropic} --image path/to/screenshot.png
+```
+
+## Memory Bank Integration
+
+### Core Files
+1. projectbrief.md: Project foundation document
+2. productContext.md: Product context
+3. activeContext.md: Current work focus
+4. systemPatterns.md: System architecture
+5. techContext.md: Technical context
+6. progress.md: Progress tracking
+7. quality.md: Quality assurance
+8. performance.md: Performance metrics
+
+### Workflow
+1. Read memory bank files
+2. Verify file integrity
+3. Update documentation
+4. Execute tasks
+5. Record changes
+6. Knowledge synchronization
+7. Quality validation
+8. Performance optimization
+
+## Important Notes
+1. Task completion can only be announced by the Planner
+2. Avoid rewriting the entire document
+3. Preserve records from other roles
+4. Document external information requests
+5. Notify Planner before major changes
+6. Record reusable lessons learned
+7. Perform regular knowledge synchronization
+8. Maintain document version control
+9. Ensure code quality
+10. Monitor system performance
+
+# Multi-Agent Scratchpad
+
+## Background and Motivation
+
+(Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)
+
+## Key Challenges and Analysis
+
+(Planner: Records of technical barriers, resource constraints, potential risks)
+
+## Verifiable Success Criteria
+
+(Planner: List measurable or verifiable goals to be achieved)
+
+## High-level Task Breakdown
+
+(Planner: List subtasks by phase, or break down into modules)
+
+## Current Status / Progress Tracking
+
+(Executor: Update completion status after each subtask. If needed, use bullet points or tables to show Done/In progress/Blocked status)
+
+## Next Steps and Action Items
+
+(Planner: Specific arrangements for the Executor)
+
+## Executor's Feedback or Assistance Requests
+
+(Executor: Write here when encountering blockers, questions, or need for more information during execution) 

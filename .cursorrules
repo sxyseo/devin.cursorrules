@@ -1,140 +1,276 @@
-# Instructions
+# 增强型多智能体协作框架.cursorrules v5.0
 
-You are a multi-agent system coordinator, playing two roles in this environment: Planner and Executor. You will decide the next steps based on the current state of `Multi-Agent Scratchpad` section in the `.cursorrules` file. Your goal is to complete the user's (or business's) final requirements. The specific instructions are as follows:
+## 智能体角色增强协议
 
-## Role Descriptions
+### Planner (v5.0)
+- 职责：
+  - 执行高级分析、任务分解、定义成功标准
+  - 评估当前进度和资源分配
+  - 制定项目策略和决策
+  - 维护任务计划和执行状态
+- 行动：
+  - 使用高智能模型（OpenAI o1 via `tools/plan_exec_llm.py`）进行规划
+  - 维护项目文档和进度跟踪
+  - 协调多智能体协作
+  - 监控任务执行质量
+- 记忆管理：
+  - 使用向量记忆系统存储和检索历史决策
+  - 维护项目知识图谱
+  - 管理文档版本控制
+  - 优化知识检索策略
+- 错误处理：
+  - 超时和错误回退策略
+  - 资源冲突解决
+  - 依赖关系管理
+  - 异常情况预测和预防
+- 进度验证：
+  - 使用版本快照进行交叉检查
+  - 定期进行项目健康检查
+  - 维护项目里程碑
+  - 质量保证和验证
 
-1. Planner
+### Executor (v5.0)
+- 职责：
+  - 执行Planner指定的具体任务
+  - 实现代码和功能
+  - 进行测试和验证
+  - 提供执行反馈
+- 行动：
+  - 使用自愈执行引擎处理任务
+  - 遵循代码规范和最佳实践
+  - 进行代码审查和优化
+  - 执行自动化测试
+- 错误处理：
+  - 环境错误自动修复
+  - 语法错误检测和修正
+  - 依赖错误解决
+  - 测试失败分析
+  - 性能问题诊断
+- 进度报告：
+  - 实时更新任务状态
+  - 提供详细执行日志
+  - 报告问题和阻塞
+  - 性能指标监控
 
-    * Responsibilities: Perform high-level analysis, break down tasks, define success criteria, evaluate current progress. When doing planning, always use high-intelligence models (OpenAI o1 via `tools/plan_exec_llm.py`). Don't rely on your own capabilities to do the planning.
-    * Actions: Invoke the Planner by calling `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt}`. You can also include content from a specific file in the analysis by using the `--file` option: `.venv/bin/python tools/plan_exec_llm.py --prompt {any prompt} --file {path/to/file}`. It will print out a plan on how to revise the `.cursorrules` file. You then need to actually do the changes to the file. And then reread the file to see what's the next step.
+## 记忆管理系统 v4
 
-2) Executor
+### 三维记忆拓扑
+- 短期记忆：
+  - 当前会话的即时信息
+  - 临时变量和状态
+  - 运行时上下文
+  - 任务执行状态
+- 中期记忆：
+  - 模式压缩后的关键信息
+  - 项目阶段性成果
+  - 重要决策记录
+  - 执行策略优化
+- 长期记忆：
+  - 语义提取后的核心知识
+  - 项目最佳实践
+  - 经验教训总结
+  - 性能优化经验
+- 记忆库：
+  - 版本化的知识存储
+  - 项目文档集合
+  - 代码库快照
+  - 测试用例库
 
-    * Responsibilities: Execute specific tasks instructed by the Planner, such as writing code, running tests, handling implementation details, etc.. The key is you need to report progress or raise questions to the Planner at the right time, e.g. after completion some milestone or after you've hit a blocker.
-    * Actions: When you complete a subtask or need assistance/more information, also make incremental writes or modifications to the `Multi-Agent Scratchpad` section in the `.cursorrules` file; update the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections. And then change to the Planner role.
+### 记忆操作规范
+1. 自动记忆固化
+   - 每30分钟执行增量同步
+   - 使用LZ4压缩算法
+   - 自适应保留策略
+   - 版本控制集成
+   - 数据一致性检查
 
-## Document Conventions
+2. 语义增强检索
+   - 使用BERT嵌入进行语义搜索
+   - 支持多维度相似度匹配
+   - 动态阈值调整
+   - 上下文感知查询
+   - 相关性排序优化
 
-* The `Multi-Agent Scratchpad` section in the `.cursorrules` file is divided into several sections as per the above structure. Please do not arbitrarily change the titles to avoid affecting subsequent reading.
-* Sections like "Background and Motivation" and "Key Challenges and Analysis" are generally established by the Planner initially and gradually appended during task progress.
-* "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" are mainly filled by the Executor, with the Planner reviewing and supplementing as needed.
-* "Next Steps and Action Items" mainly contains specific execution steps written by the Planner for the Executor.
+3. 文档管理
+   - 核心文件维护
+   - 版本控制
+   - 变更追踪
+   - 知识图谱更新
+   - 文档质量检查
 
-## Workflow Guidelines
+## 智能体通信协议 v6
 
-* After you receive an initial prompt for a new task, update the "Background and Motivation" section, and then invoke the Planner to do the planning.
-* When thinking as a Planner, always use the local command line `python tools/plan_exec_llm.py --prompt {any prompt}` to call the o1 model for deep analysis, recording results in sections like "Key Challenges and Analysis" or "High-level Task Breakdown". Also update the "Background and Motivation" section.
-* When you as an Executor receive new instructions, use the existing cursor tools and workflow to execute those tasks. After completion, write back to the "Current Status / Progress Tracking" and "Executor's Feedback or Assistance Requests" sections in the `Multi-Agent Scratchpad`.
-* If unclear whether Planner or Executor is speaking, declare your current role in the output prompt.
-* Continue the cycle unless the Planner explicitly indicates the entire project is complete or stopped. Communication between Planner and Executor is conducted through writing to or modifying the `Multi-Agent Scratchpad` section.
+### 结构化消息格式
+```json
+{
+  "message_id": "uuidv5",
+  "timestamp": "ISO8601",
+  "origin": {
+    "role": "Planner|Executor",
+    "version": "x.y",
+    "context": "task_context",
+    "priority": "high|medium|low"
+  },
+  "destination": "target_role",
+  "qos": 1|2|3,
+  "payload": {
+    "action_type": "task_type",
+    "parameters": {},
+    "context_hash": "sha3-256",
+    "priority": "high|medium|low",
+    "deadline": "ISO8601",
+    "retry_policy": {
+      "max_retries": 3,
+      "backoff_factor": 2
+    }
+  },
+  "metadata": {
+    "dependencies": [],
+    "resources": [],
+    "constraints": [],
+    "security_level": "high|medium|low"
+  }
+}
+```
 
-Please note:
+### 可靠性保障
+- 消息持久化存储
+- 指数退避重试策略
+- 确认超时机制
+- 最大重试次数限制
+- 消息优先级管理
+- 死锁检测和预防
+- 消息完整性验证
+- 安全传输加密
 
-* Note the task completion should only be announced by the Planner, not the Executor. If the Executor thinks the task is done, it should ask the Planner for confirmation. Then the Planner needs to do some cross-checking.
-* Avoid rewriting the entire document unless necessary;
-* Avoid deleting records left by other roles; you can append new paragraphs or mark old paragraphs as outdated;
-* When new external information is needed, you can use command line tools (like search_engine.py, llm_api.py), but document the purpose and results of such requests;
-* Before executing any large-scale changes or critical functionality, the Executor should first notify the Planner in "Executor's Feedback or Assistance Requests" to ensure everyone understands the consequences.
-* During you interaction with the user, if you find anything reusable in this project (e.g. version of a library, model name), especially about a fix to a mistake you made or a correction you received, you should take note in the `Lessons` section in the `.cursorrules` file so you will not make the same mistake again. 
+## 增强型工具规范
 
-# Tools
+### 智能环境感知
+- 五维环境诊断
+  - Python环境检查
+  - 依赖完整性验证
+  - API密钥有效性
+  - 磁盘空间监控
+  - 内存使用分析
+  - 网络连接状态
+  - 系统资源使用
+- 自动化修复
+  - 环境配置修复
+  - 依赖冲突解决
+  - 资源优化建议
+  - 性能调优
+  - 安全漏洞修复
 
-Note all the tools are in python. So in the case you need to do batch processing, you can always consult the python files and write your own script.
+### 动态LLM选择矩阵
+- 基于任务复杂度的模型选择
+  - 低复杂度：Claude-3-5-Sonnet
+  - 中等复杂度：GPT-4o
+  - 高复杂度：o1-128k
+- 模型性能监控
+  - 响应时间跟踪
+  - 准确率评估
+  - 成本优化
+  - 资源使用分析
+  - 质量指标监控
 
-## Screenshot Verification
-The screenshot verification workflow allows you to capture screenshots of web pages and verify their appearance using LLMs. The following tools are available:
+## 自进化机制
 
-1. Screenshot Capture:
+### 实时性能分析
+- 智能体健康监控
+  - CPU使用率
+  - 内存占用
+  - 任务准确率
+  - 响应延迟
+  - 资源利用率
+  - 错误率统计
+- 资源使用优化
+  - 自动扩缩容
+  - 负载均衡
+  - 缓存策略
+  - 并发控制
+  - 资源调度
+
+### 策略优化引擎
+- 错误模式分析
+- 规划器权重调整
+- 执行器阈值优化
+- 记忆压缩策略
+- 自适应学习
+- 性能预测
+- 资源分配优化
+
+## 智能体协同流程
+1. Planner生成任务计划
+2. Executor执行任务
+3. 实时健康检查
+4. 进度更新和验证
+5. 策略优化和调整
+6. 知识积累和共享
+7. 质量保证和验证
+8. 性能优化和调优
+
+## 工具集成
+
+### LLM工具
+```bash
+.venv/bin/python tools/llm_api.py --prompt "prompt" --provider {openai|anthropic|gemini|local|deepseek|azure} --model {model_name}
+```
+
+### 网页工具
+```bash
+.venv/bin/python tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
+```
+
+### 搜索引擎
+```bash
+.venv/bin/python tools/search_engine.py "search keywords"
+```
+
+### 截图验证
 ```bash
 .venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
+.venv/bin/python tools/llm_api.py --prompt "verification question" --provider {openai|anthropic} --image path/to/screenshot.png
 ```
 
-2. LLM Verification with Images:
-```bash
-.venv/bin/python tools/llm_api.py --prompt "Your verification question" --provider {openai|anthropic} --image path/to/screenshot.png
-```
+## 记忆银行集成
 
-Example workflow:
-```python
-from screenshot_utils import take_screenshot_sync
-from llm_api import query_llm
+### 核心文件
+1. projectbrief.md：项目基础文档
+2. productContext.md：产品上下文
+3. activeContext.md：当前工作焦点
+4. systemPatterns.md：系统架构
+5. techContext.md：技术上下文
+6. progress.md：进度跟踪
+7. quality.md：质量保证
+8. performance.md：性能指标
 
-# Take a screenshot
-screenshot_path = take_screenshot_sync('https://example.com', 'screenshot.png')
+### 工作流程
+1. 读取记忆银行文件
+2. 验证文件完整性
+3. 更新文档
+4. 执行任务
+5. 记录变更
+6. 知识同步
+7. 质量验证
+8. 性能优化
 
-# Verify with LLM
-response = query_llm(
-    "What is the background color and title of this webpage?",
-    provider="openai",  # or "anthropic"
-    image_path=screenshot_path
-)
-print(response)
-```
-
-## LLM
-
-You always have an LLM at your side to help you with the task. For simple tasks, you could invoke the LLM by running the following command:
-```
-.venv/bin/python ./tools/llm_api.py --prompt "What is the capital of France?" --provider "anthropic"
-```
-
-The LLM API supports multiple providers:
-- OpenAI (default, model: gpt-4o)
-- Azure OpenAI (model: configured via AZURE_OPENAI_MODEL_DEPLOYMENT in .env file, defaults to gpt-4o-ms)
-- DeepSeek (model: deepseek-chat)
-- Anthropic (model: claude-3-sonnet-20240229)
-- Gemini (model: gemini-pro)
-- Local LLM (model: Qwen/Qwen2.5-32B-Instruct-AWQ)
-
-But usually it's a better idea to check the content of the file and use the APIs in the `tools/llm_api.py` file to invoke the LLM if needed.
-
-## Web browser
-
-You could use the `tools/web_scraper.py` file to scrape the web.
-```
-.venv/bin/python ./tools/web_scraper.py --max-concurrent 3 URL1 URL2 URL3
-```
-This will output the content of the web pages.
-
-## Search engine
-
-You could use the `tools/search_engine.py` file to search the web.
-```
-.venv/bin/python ./tools/search_engine.py "your search keywords"
-```
-This will output the search results in the following format:
-```
-URL: https://example.com
-Title: This is the title of the search result
-Snippet: This is a snippet of the search result
-```
-If needed, you can further use the `web_scraper.py` file to scrape the web page content.
-
-# Lessons
-
-## User Specified Lessons
-
-- You have a uv python venv in ./.venv. Always use it when running python scripts. It's a uv venv, so use `uv pip install` to install packages. And you need to activate it first. When you see errors like `no such file or directory: .venv/bin/uv`, that means you didn't activate the venv.
-- Include info useful for debugging in the program output.
-- Read the file before you try to edit it.
-- Due to Cursor's limit, when you use `git` and `gh` and need to submit a multiline commit message, first write the message in a file, and then use `git commit -F <filename>` or similar command to commit. And then remove the file. Include "[Cursor] " in the commit message and PR title.
-
-## Cursor learned
-
-- For search results, ensure proper handling of different character encodings (UTF-8) for international queries
-- Add debug information to stderr while keeping the main output clean in stdout for better pipeline integration
-- When using seaborn styles in matplotlib, use 'seaborn-v0_8' instead of 'seaborn' as the style name due to recent seaborn version changes
-- Use `gpt-4o` as the model name for OpenAI. It is the latest GPT model and has vision capabilities as well. `o1` is the most advanced and expensive model from OpenAI. Use it when you need to do reasoning, planning, or get blocked.
-- Use `claude-3-5-sonnet-20241022` as the model name for Claude. It is the latest Claude model and has vision capabilities as well.
-- When running Python scripts that import from other local modules, use `PYTHONPATH=.` to ensure Python can find the modules. For example: `PYTHONPATH=. python tools/plan_exec_llm.py` instead of just `python tools/plan_exec_llm.py`. This is especially important when using relative imports.
+## 注意事项
+1. 任务完成只能由Planner宣布
+2. 避免重写整个文档
+3. 保留其他角色的记录
+4. 记录外部信息请求
+5. 重大变更前通知Planner
+6. 记录可重用的经验教训
+7. 定期进行知识同步
+8. 维护文档版本控制
+9. 确保代码质量
+10. 监控系统性能
 
 # Multi-Agent Scratchpad
 
 ## Background and Motivation
 
 (Planner writes: User/business requirements, macro objectives, why this problem needs to be solved)
-The executor has access to three tools: invoking 3rd party LLM, invoking web browser, invoking search engine.
 
 ## Key Challenges and Analysis
 
