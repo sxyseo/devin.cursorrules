@@ -634,6 +634,92 @@ class Planner:
             results.append(task)
         
         return results
+    
+    def _analyze_task(self, task_id: str) -> bool:
+        """分析任务并创建子任务
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            分析是否成功
+        """
+        # 获取任务
+        task = self.get_task(task_id)
+        if task is None:
+            logger.warning(f"找不到要分析的任务: {task_id}")
+            return False
+        
+        # 如果任务已经有子任务，跳过分析
+        if task.subtasks:
+            logger.info(f"任务 {task_id} 已有子任务，跳过分析")
+            return True
+            
+        # 记录开始分析
+        logger.info(f"开始分析任务: {task.description}")
+        
+        try:
+            # 使用LLM进行任务分解（如果可用）
+            subtask_descriptions = []
+            
+            if llm_available:
+                # 构建提示
+                prompt = f"""
+                任务描述: {task.description}
+                
+                请将此任务分解为5个或更少的子任务，每个子任务应该是自包含、明确的工作单元。
+                考虑任务的依赖关系，确保子任务按照合理的顺序排列。
+                
+                输出格式:
+                [
+                  "子任务1描述",
+                  "子任务2描述",
+                  ...
+                ]
+                """
+                
+                # 调用LLM
+                response = query_planner_llm(prompt, self.llm_provider)
+                
+                # 解析响应
+                try:
+                    # 尝试直接解析完整的JSON
+                    subtask_descriptions = json.loads(response)
+                except json.JSONDecodeError:
+                    # 如果直接解析失败，尝试提取方括号内的内容
+                    import re
+                    match = re.search(r'\[(.*?)\]', response, re.DOTALL)
+                    if match:
+                        # 将提取的内容格式化为JSON数组
+                        items_str = match.group(1)
+                        # 分割并清理引号
+                        items = [item.strip().strip('"\'') for item in items_str.split('",')]
+                        subtask_descriptions = [item for item in items if item]
+            
+            # 如果LLM不可用或没有返回结果，使用战略引擎进行分解
+            if not subtask_descriptions:
+                logger.info("使用战略引擎分解任务")
+                subtask_descriptions = self.strategic_engine.decompose_goal(task.description)
+            
+            # 创建子任务
+            for description in subtask_descriptions:
+                # 跳过空描述
+                if not description.strip():
+                    continue
+                    
+                # 创建子任务
+                subtask_id = self.create_task(description, task.priority, task.deadline, task.task_id)
+                logger.info(f"创建子任务: {subtask_id} - {description[:50]}...")
+            
+            # 保存状态
+            self._save_state()
+            
+            logger.info(f"任务 {task_id} 分析完成，创建了 {len(task.subtasks)} 个子任务")
+            return True
+            
+        except Exception as e:
+            logger.error(f"分析任务 {task_id} 时出错: {e}")
+            return False
 
 class StrategicEngine:
     """战略层决策引擎，负责目标分解和资源评估"""
@@ -651,35 +737,160 @@ class StrategicEngine:
         Returns:
             子任务描述列表
         """
-        # 在实际实现中，这里会调用LLM来分解目标
-        # 以下是模拟实现
+        # 记录分解请求
         logger.info(f"分解目标: {goal}")
+        logger.info(f"约束条件: {constraints}")
         
-        # 模拟任务分解
-        if "开发" in goal.lower():
+        try:
+            # 尝试使用LLM进行任务分解（如果可用）
+            if llm_available:
+                # 构建详细的提示词
+                constraints_text = "\n".join([f"- {c}" for c in constraints]) if constraints else "无特殊约束"
+                
+                prompt = f"""
+                # 任务分解请求
+                
+                ## 任务目标
+                {goal}
+                
+                ## 约束条件
+                {constraints_text}
+                
+                ## 要求
+                1. 请将此任务分解为5个或更少的具体子任务
+                2. 子任务应该:
+                   - 遵循合理的执行顺序
+                   - 每个子任务应该是明确定义的工作单元
+                   - 子任务之间应有适当的依赖关系
+                3. 考虑所有约束条件
+                
+                ## 输出格式
+                仅返回子任务列表的JSON数组，不要添加任何解释:
+                [
+                  "子任务1描述",
+                  "子任务2描述",
+                  ...
+                ]
+                """
+                
+                # 调用LLM
+                response = query_planner_llm(prompt, self.planner.llm_provider)
+                
+                # 解析响应
+                try:
+                    # 尝试直接解析JSON
+                    import json
+                    subtasks = json.loads(response)
+                    if isinstance(subtasks, list) and len(subtasks) > 0:
+                        logger.info(f"LLM成功分解任务，生成{len(subtasks)}个子任务")
+                        return subtasks
+                except Exception as e:
+                    logger.warning(f"解析LLM响应失败: {e}")
+                    
+                    # 尝试使用正则表达式提取JSON数组
+                    try:
+                        import re
+                        # 匹配方括号包围的内容
+                        match = re.search(r'\[(.*?)\]', response, re.DOTALL)
+                        if match:
+                            items_str = match.group(1)
+                            # 分割项目（处理可能的不同引号格式）
+                            items = re.findall(r'"([^"]*?)"|\'([^\']*?)\'', items_str)
+                            # 从每个匹配的组中提取非空值
+                            subtasks = [next(s for s in group if s) for group in items if any(group)]
+                            if subtasks:
+                                logger.info(f"从LLM响应中提取了{len(subtasks)}个子任务")
+                                return subtasks
+                    except Exception as e2:
+                        logger.warning(f"提取任务列表失败: {e2}")
+        
+        except Exception as e:
+            logger.error(f"调用LLM分解任务失败: {e}")
+        
+        # 如果LLM方法失败或不可用，使用基于规则的分解方法
+        logger.info("使用基于规则的方法分解任务")
+        
+        # 增强的基于关键词的任务分解
+        goal_lower = goal.lower()
+        
+        # 开发类任务
+        if any(kw in goal_lower for kw in ["开发", "构建", "实现", "编程", "设计系统"]):
             return [
-                "需求分析和定义",
-                "系统设计和架构",
-                "核心功能实现",
-                "测试和质量保证",
-                "部署和文档编写"
+                "需求分析和功能定义",
+                "系统架构和组件设计",
+                "核心功能实现和接口开发",
+                "单元测试和集成测试",
+                "优化性能和文档编写"
             ]
-        elif "测试" in goal.lower():
+        
+        # 测试类任务
+        elif any(kw in goal_lower for kw in ["测试", "验证", "质量保证", "qa"]):
             return [
-                "定义测试范围和策略",
-                "编写测试用例",
-                "执行自动化测试",
-                "执行手动测试",
-                "报告测试结果"
+                "测试需求分析和策略制定",
+                "测试计划编写和用例设计",
+                "环境搭建和自动化测试脚本开发",
+                "执行测试和缺陷跟踪",
+                "测试报告生成和结果分析"
             ]
+        
+        # 分析类任务
+        elif any(kw in goal_lower for kw in ["分析", "研究", "调查", "评估"]):
+            return [
+                "信息收集和数据获取",
+                "数据清理和初步分析",
+                "深入分析和模式识别",
+                "结果验证和假设检验",
+                "报告编写和建议生成"
+            ]
+        
+        # 优化类任务
+        elif any(kw in goal_lower for kw in ["优化", "改进", "提升", "增强", "性能"]):
+            return [
+                "性能基准测试和瓶颈识别",
+                "优化策略制定和方案设计",
+                "算法和代码重构实现",
+                "性能测试和对比分析",
+                "文档更新和最佳实践总结"
+            ]
+        
+        # 文档类任务
+        elif any(kw in goal_lower for kw in ["文档", "文章", "报告", "写作"]):
+            return [
+                "内容规划和大纲设计",
+                "核心内容编写和示例开发",
+                "图表和可视化资料准备",
+                "格式调整和内容审核",
+                "最终校对和发布准备"
+            ]
+        
+        # 集成类任务
+        elif any(kw in goal_lower for kw in ["集成", "部署", "安装", "配置"]):
+            return [
+                "环境准备和依赖分析",
+                "组件集成和接口调整",
+                "配置优化和自动化脚本开发",
+                "部署测试和验证",
+                "监控设置和运维文档编写"
+            ]
+        
+        # 管理类任务
+        elif any(kw in goal_lower for kw in ["管理", "协调", "规划", "项目"]):
+            return [
+                "项目范围定义和需求收集",
+                "任务分解和资源分配",
+                "进度跟踪和风险管理",
+                "团队协调和沟通",
+                "结果验收和项目总结"
+            ]
+        
+        # 默认通用任务分解
         else:
-            # 默认分解为通用任务
             return [
-                "收集信息和资源",
-                "分析和规划",
-                "执行核心任务",
-                "验证和检查",
-                "总结和文档编写"
+                "需求收集和资源准备",
+                "方案设计和计划制定",
+                "核心任务执行",
+                "结果验证和改进",
+                "文档完善和总结"
             ]
 
 class TacticalEngine:

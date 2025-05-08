@@ -15,8 +15,11 @@ import mimetypes
 import time
 import platform
 import httpx
-from . import token_tracker
-from .token_tracker import TokenUsage, APIResponse, get_token_tracker
+
+# 将当前目录添加到sys.path以解决直接运行脚本时的导入问题
+sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
+import tools.token_tracker as token_tracker
+from tools.token_tracker import TokenUsage, APIResponse, get_token_tracker
 
 # 配置日志
 logging.basicConfig(
@@ -437,7 +440,7 @@ def main():
     parser = argparse.ArgumentParser(description='Query an LLM with a prompt')
     parser.add_argument('--prompt', type=str, help='The prompt to send to the LLM', required=True)
     parser.add_argument('--provider', 
-                       choices=['openai','anthropic','gemini','local','deepseek','azure','siliconflow','openrouter'], 
+                       choices=['openai','anthropic','gemini','local','deepseek','azure','siliconflow','openrouter','mock'], 
                        default='openai', help='The API provider to use')
     parser.add_argument('--model', type=str, help='The model to use (default depends on provider)')
     parser.add_argument('--image', type=str, help='Path to an image file to attach to the prompt')
@@ -468,11 +471,18 @@ def main():
             args.model = "deepseek-ai/DeepSeek-R1"
         elif args.provider == 'openrouter':
             args.model = "openai/gpt-4o"
+        elif args.provider == 'mock':
+            args.model = "mock-model"
 
     try:
-        client = create_llm_client(args.provider)
-        logger.info(f"Querying {args.provider}/{args.model}")
-        response = query_llm(args.prompt, client, model=args.model, provider=args.provider, image_path=args.image)
+        if args.provider == 'mock':
+            logger.info("Using mock LLM provider")
+            response = mock_response(args.prompt, args.model)
+        else:
+            client = create_llm_client(args.provider)
+            logger.info(f"Querying {args.provider}/{args.model}")
+            response = query_llm(args.prompt, client, model=args.model, provider=args.provider, image_path=args.image)
+        
         if response:
             print(response)
         else:
@@ -482,6 +492,89 @@ def main():
         logger.error(f"调用LLM时出错: {e}")
         print(f"调用LLM时出错: {e}", file=sys.stderr)
         sys.exit(1)
+
+def mock_response(prompt: str, model: str = "mock-model") -> str:
+    """生成模拟响应，用于测试和调试
+    
+    Args:
+        prompt: 提示词
+        model: 模型名称
+        
+    Returns:
+        模拟的响应文本
+    """
+    logger.info(f"Mock LLM called with prompt: {prompt[:30]}...")
+    
+    # 模拟token使用情况和成本计算
+    estimated_prompt_tokens = len(prompt.split()) * 1.3
+    estimated_completion_tokens = 150  # 假设响应大约有150个token
+    
+    token_usage = TokenUsage(
+        prompt_tokens=int(estimated_prompt_tokens),
+        completion_tokens=estimated_completion_tokens,
+        total_tokens=int(estimated_prompt_tokens) + estimated_completion_tokens
+    )
+    
+    # 使用安全的成本计算方式，固定一个低成本
+    cost = 0.001  # 固定成本为0.001美元
+    
+    # 记录模拟响应
+    api_response = APIResponse(
+        content="模拟响应",
+        token_usage=token_usage,
+        cost=cost,
+        thinking_time=0.5,
+        provider="mock",
+        model=model
+    )
+    
+    try:
+        get_token_tracker().track_request(api_response)
+    except Exception as e:
+        logger.warning(f"无法记录token使用情况: {e}")
+    
+    # 根据提示词包含的关键字返回不同的模拟响应
+    if "任务" in prompt and "规划" in prompt:
+        return """
+任务规划优化功能开发可以拆分为以下具体子任务：
+
+1. 需求分析与范围确定
+   - 明确任务规划优化的具体目标和需求
+   - 定义输入输出规范和性能指标
+   - 确定优化范围和约束条件
+
+2. 算法设计与选型
+   - 研究适用的任务规划算法（关键路径、资源分配等）
+   - 设计任务依赖关系表示模型
+   - 确定优先级计算方法和规则
+
+3. 核心引擎实现
+   - 开发任务分解与组合模块
+   - 实现依赖关系分析功能
+   - 开发关键路径识别算法
+   - 构建资源分配与约束处理机制
+
+4. LLM集成与提示工程
+   - 设计LLM任务分解提示模板
+   - 实现LLM响应解析器
+   - 开发LLM与规划引擎的集成接口
+   - 优化提示词以提高分解质量
+
+5. 测试与优化
+   - 构建单元测试和集成测试
+   - 性能基准测试和对比分析
+   - 边缘情况处理和鲁棒性增强
+   - 算法参数调优和性能优化
+
+6. 文档与示例
+   - 编写API文档和使用说明
+   - 创建示例和教程
+   - 整理最佳实践指南
+"""
+    elif "测试" in prompt:
+        return "这是一条模拟响应，用于测试llm_api模块的导入和基本功能。"
+    else:
+        return f"已收到您的提示: {prompt[:50]}...，这是一个模拟响应，仅用于测试。"
 
 if __name__ == "__main__":
     main()
