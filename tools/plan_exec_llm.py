@@ -75,11 +75,7 @@ Project Plan and Status:
 
     combined_prompt += """\nYour response should be focusing on revising the Multi-Agent Scratchpad section in the scratchpad.md file. There is no need to regenerate the entire document. You can use the following format to prompt how to revise the document:
 
-<<<<<<<SEARCH
-<text in the original document>
-=======
 <Proprosed changes>
->>>>>>>
 
 We will do the actual changes in the scratchpad.md file.
 """
