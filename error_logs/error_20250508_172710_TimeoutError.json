@@ -1,0 +1,18 @@
+{
+  "message": "操作超时",
+  "error_type": "TimeoutError",
+  "timestamp": 1746696430.239515,
+  "category": "timeout",
+  "severity": "MEDIUM",
+  "source": "错误测试模块",
+  "traceback": "Traceback (most recent call last):\n  File \"D:\\dev\\devin.cursorrules_new\\tools\\error_handler.py\", line 496, in main\n    raise TimeoutError(\"操作超时\")\nTimeoutError: 操作超时\n",
+  "context": {
+    "test_mode": true
+  },
+  "system_info": {
+    "os": "Windows",
+    "platform": "Windows-10-10.0.26100-SP0",
+    "python_version": "3.11.9",
+    "hostname": "DevPlus"
+  }
+}

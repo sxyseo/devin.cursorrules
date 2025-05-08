@@ -20,6 +20,12 @@ import httpx
 sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
 import tools.token_tracker as token_tracker
 from tools.token_tracker import TokenUsage, APIResponse, get_token_tracker
+try:
+    from tools.error_handler import get_error_handler, ErrorCategory, ErrorSeverity, handle_exception
+    error_handler_available = True
+except ImportError:
+    error_handler_available = False
+    print("警告: 错误处理模块不可用，将使用基本错误处理", file=sys.stderr)
 
 # 配置日志
 logging.basicConfig(
@@ -184,6 +190,7 @@ def create_llm_client(provider="openai"):
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
+@handle_exception("llm_api", {"module": "query_llm"}, ErrorSeverity.MEDIUM) if error_handler_available else lambda func: func
 def query_llm(prompt: str, client=None, model=None, provider="openai", image_path: Optional[str] = None) -> Optional[str]:
     """
     Query an LLM with a prompt and optional image attachment.
@@ -196,7 +203,7 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
             - Has reasoning_effort parameter
             - Is the only model that provides reasoning_tokens in its response
         provider (str): The API provider to use
-        image_path (str, optional): Path to an image file to attach
+        image_path (str, optional): Path to an image file to attach to the prompt
         
     Returns:
         Optional[str]: The LLM's response or None if there was an error
@@ -445,6 +452,7 @@ def main():
     parser.add_argument('--model', type=str, help='The model to use (default depends on provider)')
     parser.add_argument('--image', type=str, help='Path to an image file to attach to the prompt')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--error-report', action='store_true', help='Show detailed error report if an error occurs')
     args = parser.parse_args()
 
     # 设置日志级别
@@ -491,6 +499,35 @@ def main():
     except Exception as e:
         logger.error(f"调用LLM时出错: {e}")
         print(f"调用LLM时出错: {e}", file=sys.stderr)
+        
+        # 如果可用，使用错误处理模块生成错误报告
+        if error_handler_available and args.error_report:
+            handler = get_error_handler()
+            error_info = handler.handle_error(e, "llm_api.main", 
+                                           {"provider": args.provider, "model": args.model})
+            if error_info.resolved:
+                logger.info("错误已自动恢复，重试请求")
+                # 如果错误已恢复，重试请求
+                if args.provider == 'mock':
+                    response = mock_response(args.prompt, args.model)
+                else:
+                    client = create_llm_client(args.provider)
+                    response = query_llm(args.prompt, client, model=args.model, 
+                                        provider=args.provider, image_path=args.image)
+                if response:
+                    print(response)
+                    sys.exit(0)
+            
+            # 打印错误报告
+            report = handler.get_error_report()
+            print("\n错误报告:")
+            print(f"错误类型: {error_info.error_type}")
+            print(f"错误类别: {error_info.category.value}")
+            print(f"严重程度: {error_info.severity.name}")
+            print(f"来源: {error_info.source}")
+            print(f"已尝试恢复: {error_info.recovery_attempts} 次")
+            print(f"是否已解决: {'是' if error_info.resolved else '否'}")
+        
         sys.exit(1)
 
 def mock_response(prompt: str, model: str = "mock-model") -> str:

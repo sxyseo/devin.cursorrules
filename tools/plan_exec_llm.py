@@ -12,11 +12,25 @@ import json
 import logging
 import time
 import platform
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Tuple
 import requests
 from pathlib import Path
 import argparse
 from dotenv import load_dotenv
+
+# 将当前目录添加到sys.path以解决导入问题
+sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
+
+# 导入错误处理模块
+try:
+    from tools.error_handler import (
+        get_error_handler, ErrorCategory, ErrorSeverity, 
+        handle_exception, ErrorInfo
+    )
+    error_handler_available = True
+except ImportError:
+    error_handler_available = False
+    print("警告: 错误处理模块不可用，将使用基本错误处理", file=sys.stderr)
 
 # 配置日志
 logging.basicConfig(
@@ -25,6 +39,356 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger("planner_llm")
+
+# 错误模式识别系统
+class ErrorPatternRecognizer:
+    """错误模式识别系统，识别常见错误模式并提供恢复建议"""
+    
+    def __init__(self):
+        self.error_patterns = {
+            # 网络错误模式
+            "connection_timeout": {
+                "keywords": ["connection timeout", "timed out", "connect timeout"],
+                "category": ErrorCategory.NETWORK,
+                "severity": ErrorSeverity.MEDIUM,
+                "recovery_action": self._handle_timeout_error
+            },
+            "connection_refused": {
+                "keywords": ["connection refused", "unable to connect"],
+                "category": ErrorCategory.NETWORK,
+                "severity": ErrorSeverity.MEDIUM,
+                "recovery_action": self._handle_connection_error
+            },
+            # API错误模式
+            "rate_limit": {
+                "keywords": ["rate limit", "too many requests", "429"],
+                "category": ErrorCategory.API,
+                "severity": ErrorSeverity.MEDIUM,
+                "recovery_action": self._handle_rate_limit
+            },
+            "authentication_error": {
+                "keywords": ["authentication", "unauthorized", "invalid api key", "401"],
+                "category": ErrorCategory.API,
+                "severity": ErrorSeverity.HIGH,
+                "recovery_action": self._handle_auth_error
+            },
+            # 超时错误模式
+            "request_timeout": {
+                "keywords": ["request timeout", "timeout expired", "timeout error"],
+                "category": ErrorCategory.TIMEOUT,
+                "severity": ErrorSeverity.MEDIUM,
+                "recovery_action": self._handle_timeout_error
+            },
+            # 资源错误模式
+            "resource_exhausted": {
+                "keywords": ["resource exhausted", "out of memory", "memory error"],
+                "category": ErrorCategory.RESOURCE,
+                "severity": ErrorSeverity.HIGH,
+                "recovery_action": self._handle_resource_error
+            },
+            # 依赖错误模式
+            "dependency_error": {
+                "keywords": ["module", "not found", "no module named", "import error"],
+                "category": ErrorCategory.DEPENDENCY,
+                "severity": ErrorSeverity.HIGH,
+                "recovery_action": self._handle_dependency_error
+            }
+        }
+        logger.debug("错误模式识别系统初始化完成")
+    
+    def recognize_error(self, error: Exception, source: str) -> Tuple[ErrorCategory, ErrorSeverity, Optional[callable]]:
+        """识别错误模式并返回错误类别、严重程度和恢复操作
+        
+        Args:
+            error: 异常对象
+            source: 错误来源
+            
+        Returns:
+            Tuple[ErrorCategory, ErrorSeverity, Optional[callable]]: 错误类别、严重程度和恢复操作
+        """
+        error_msg = str(error).lower()
+        error_type = type(error).__name__.lower()
+        
+        # 检查每个错误模式
+        for pattern_name, pattern_info in self.error_patterns.items():
+            keywords = pattern_info["keywords"]
+            # 检查错误消息和类型中是否包含关键词
+            if any(kw.lower() in error_msg or kw.lower() in error_type for kw in keywords):
+                logger.info(f"识别到错误模式: {pattern_name}")
+                return (
+                    pattern_info["category"],
+                    pattern_info["severity"],
+                    pattern_info["recovery_action"]
+                )
+        
+        # 如果没有匹配的模式，根据错误类型进行基本分类
+        if "timeout" in error_type or "timeout" in error_msg:
+            return ErrorCategory.TIMEOUT, ErrorSeverity.MEDIUM, self._handle_timeout_error
+        elif any(net_err in error_type for net_err in ["connectionerror", "connectrefused"]):
+            return ErrorCategory.NETWORK, ErrorSeverity.MEDIUM, self._handle_connection_error
+        elif "memory" in error_msg:
+            return ErrorCategory.RESOURCE, ErrorSeverity.HIGH, self._handle_resource_error
+        elif "api" in source.lower():
+            return ErrorCategory.API, ErrorSeverity.MEDIUM, None
+        
+        # 默认为未知错误
+        return ErrorCategory.UNKNOWN, ErrorSeverity.MEDIUM, None
+    
+    def get_recovery_strategy(self, error_info: ErrorInfo) -> Optional[callable]:
+        """根据错误信息获取恢复策略
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Optional[callable]: 恢复策略函数，如果没有则返回None
+        """
+        error_msg = error_info.message.lower()
+        
+        # 检查每个错误模式
+        for pattern_name, pattern_info in self.error_patterns.items():
+            keywords = pattern_info["keywords"]
+            if any(kw.lower() in error_msg for kw in keywords):
+                logger.info(f"为错误 '{error_info.error_type}' 找到恢复策略: {pattern_name}")
+                return pattern_info["recovery_action"]
+        
+        # 根据错误类别返回默认恢复策略
+        category_strategies = {
+            ErrorCategory.NETWORK: self._handle_connection_error,
+            ErrorCategory.TIMEOUT: self._handle_timeout_error,
+            ErrorCategory.API: self._handle_api_error,
+            ErrorCategory.RESOURCE: self._handle_resource_error,
+            ErrorCategory.DEPENDENCY: self._handle_dependency_error
+        }
+        
+        return category_strategies.get(error_info.category)
+    
+    # 恢复策略实现
+    def _handle_timeout_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理超时错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        # 指数退避重试
+        wait_time = min(2 ** error_info.recovery_attempts, 30)
+        logger.info(f"处理超时错误 - 等待 {wait_time} 秒后重试")
+        time.sleep(wait_time)
+        
+        # 提供恢复建议
+        recovery_params = {
+            "timeout": min(120, 60 * (error_info.recovery_attempts + 1)),  # 增加超时时间
+            "provider": error_info.context.get("provider", "mock")  # 如果重复失败，可能会回退到模拟模式
+        }
+        
+        return True, recovery_params
+    
+    def _handle_connection_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理连接错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        # 等待网络恢复
+        wait_time = min(5 * error_info.recovery_attempts, 30)
+        logger.info(f"处理连接错误 - 等待 {wait_time} 秒后重试")
+        time.sleep(wait_time)
+        
+        # 如果重试次数过多，尝试使用不同的提供商
+        if error_info.recovery_attempts >= 2:
+            current_provider = error_info.context.get("provider", "")
+            if current_provider and current_provider != "mock":
+                # 查找替代提供商
+                alternate_provider = self._find_alternate_provider(current_provider)
+                recovery_params = {
+                    "provider": alternate_provider,
+                    "retry_message": f"连接到 {current_provider} 失败，尝试使用 {alternate_provider}"
+                }
+                return True, recovery_params
+        
+        return True, {"retry_message": "等待网络恢复后重试"}
+    
+    def _handle_rate_limit(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理速率限制错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        # 指数退避等待
+        wait_time = min(5 * (2 ** error_info.recovery_attempts), 120)
+        logger.info(f"处理速率限制错误 - 等待 {wait_time} 秒后重试")
+        time.sleep(wait_time)
+        
+        # 如果重试次数过多，尝试使用不同的提供商
+        if error_info.recovery_attempts >= 2:
+            current_provider = error_info.context.get("provider", "")
+            if current_provider and current_provider != "mock":
+                # 查找替代提供商
+                alternate_provider = self._find_alternate_provider(current_provider)
+                recovery_params = {
+                    "provider": alternate_provider,
+                    "retry_message": f"{current_provider} 速率限制，切换到 {alternate_provider}"
+                }
+                return True, recovery_params
+        
+        return True, {"retry_message": f"已等待 {wait_time} 秒，避开速率限制"}
+    
+    def _handle_auth_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理认证错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        logger.warning("检测到认证错误，尝试刷新API密钥")
+        
+        # 认证错误通常需要手动干预，但可以尝试切换到不同的提供商
+        current_provider = error_info.context.get("provider", "")
+        if current_provider and current_provider != "mock":
+            # 查找替代提供商
+            alternate_provider = self._find_alternate_provider(current_provider)
+            recovery_params = {
+                "provider": alternate_provider,
+                "retry_message": f"{current_provider} 认证失败，切换到 {alternate_provider}"
+            }
+            return True, recovery_params
+        
+        # 如果没有可用的替代提供商，返回失败
+        return False, {"error_message": f"{current_provider} 认证失败，请检查API密钥"}
+    
+    def _handle_api_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理API错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        # 通用API错误处理
+        error_msg = error_info.message.lower()
+        
+        # 检查是否是速率限制错误
+        if any(kw in error_msg for kw in ["rate limit", "too many requests", "429"]):
+            return self._handle_rate_limit(error_info)
+        
+        # 检查是否是认证错误
+        if any(kw in error_msg for kw in ["authentication", "unauthorized", "invalid api key", "401"]):
+            return self._handle_auth_error(error_info)
+        
+        # 通用重试策略
+        wait_time = min(2 ** error_info.recovery_attempts, 15)
+        logger.info(f"处理API错误 - 等待 {wait_time} 秒后重试")
+        time.sleep(wait_time)
+        
+        return True, {"retry_message": "API错误，短暂等待后重试"}
+    
+    def _handle_resource_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理资源错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        logger.info("处理资源错误 - 尝试减少资源使用")
+        
+        # 尝试释放内存
+        import gc
+        gc.collect()
+        
+        # 如果是内存错误，尝试减少输入大小
+        error_msg = error_info.message.lower()
+        if "memory" in error_msg:
+            recovery_params = {
+                "reduce_input": True,
+                "max_tokens": 1024,  # 减少token数量
+                "retry_message": "内存压力过大，减少请求大小后重试"
+            }
+            return True, recovery_params
+        
+        return False, {"error_message": "资源错误无法自动恢复"}
+    
+    def _handle_dependency_error(self, error_info: ErrorInfo) -> Tuple[bool, Dict[str, Any]]:
+        """处理依赖错误
+        
+        Args:
+            error_info: 错误信息对象
+            
+        Returns:
+            Tuple[bool, Dict[str, Any]]: 是否成功恢复，以及恢复建议
+        """
+        logger.warning("检测到依赖错误，尝试降级使用可用功能")
+        
+        # 依赖错误通常需要手动干预
+        return False, {"error_message": "依赖错误需要手动安装缺失的依赖"}
+    
+    def _find_alternate_provider(self, current_provider: str) -> str:
+        """查找替代的LLM提供商
+        
+        Args:
+            current_provider: 当前使用的提供商
+            
+        Returns:
+            str: 替代提供商
+        """
+        # 提供商优先级列表
+        provider_priority = ["siliconflow", "openai", "anthropic", "deepseek", "gemini", "azure", "mock"]
+        
+        # 如果当前提供商已经是模拟模式，直接返回
+        if current_provider == "mock":
+            return "mock"
+        
+        # 获取当前可用的提供商
+        available_providers = AVAILABLE_PROVIDERS.copy()
+        
+        # 如果没有可用的提供商，使用模拟模式
+        if not available_providers:
+            return "mock"
+        
+        # 从当前提供商之后的列表中选择可用的提供商
+        try:
+            current_index = provider_priority.index(current_provider)
+            # 查找排在当前提供商后面的可用提供商
+            for provider in provider_priority[current_index+1:]:
+                if provider in available_providers:
+                    return provider
+            # 如果没有找到，从头开始查找
+            for provider in provider_priority[:current_index]:
+                if provider in available_providers:
+                    return provider
+        except ValueError:
+            # 如果当前提供商不在优先级列表中，选择第一个可用的提供商
+            return available_providers[0]
+        
+        # 如果没有找到替代提供商，使用模拟模式
+        return "mock"
+
+# 创建错误模式识别器实例
+_error_recognizer = None
+
+def get_error_recognizer() -> ErrorPatternRecognizer:
+    """获取或创建错误模式识别器实例
+    
+    Returns:
+        ErrorPatternRecognizer: 错误模式识别器实例
+    """
+    global _error_recognizer
+    if _error_recognizer is None:
+        _error_recognizer = ErrorPatternRecognizer()
+    return _error_recognizer
 
 # 检查环境变量中的API密钥
 def _check_api_keys():
@@ -101,6 +465,7 @@ SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
 SILICONFLOW_API_URL = os.getenv("SILICONFLOW_API_URL", "https://api.siliconflow.cn/v1")
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:8006/v1")
 
+@handle_exception("plan_exec_llm", {"module": "query_planner_llm"}, ErrorSeverity.MEDIUM) if error_handler_available else lambda func: func
 def query_planner_llm(prompt: str, provider: str = "siliconflow", 
                      model: Optional[str] = None,
                      max_retries: int = 3,
@@ -141,20 +506,81 @@ def query_planner_llm(prompt: str, provider: str = "siliconflow",
     # 获取处理函数
     process_function = provider_functions.get(provider, _mock_response)
     
+    # 上下文信息，用于错误处理
+    context = {
+        "provider": provider,
+        "model": model,
+        "max_retries": max_retries,
+        "timeout": timeout,
+        "prompt_length": len(prompt),
+        "prompt_start": prompt[:50]
+    }
+    
     # 重试机制
     retries = 0
+    last_error = None
+    wait_time = 0
+    
     while retries < max_retries:
         try:
-            return process_function(prompt, model, timeout)
+            if retries > 0:
+                logger.info(f"重试 ({retries}/{max_retries}){f'，等待{wait_time}秒' if wait_time > 0 else ''}")
+                if wait_time > 0:
+                    time.sleep(wait_time)
+            
+            result = process_function(prompt, model, timeout)
+            if result:
+                return result
+            else:
+                raise ValueError("LLM返回了空响应")
+                
         except Exception as e:
+            last_error = e
             retries += 1
+            
+            # 自动错误恢复
+            if error_handler_available:
+                try:
+                    # 获取错误处理器
+                    handler = get_error_handler()
+                    # 使用错误模式识别器丰富错误处理
+                    recognizer = get_error_recognizer()
+                    
+                    # 处理错误
+                    error_info = handler.handle_error(e, "plan_exec_llm", context)
+                    
+                    # 如果错误已经被自动恢复，继续执行
+                    if error_info.resolved:
+                        logger.info("错误已被自动恢复，继续执行")
+                        continue
+                    
+                    # 如果错误没有被自动恢复，尝试使用错误模式识别器恢复
+                    recovery_strategy = recognizer.get_recovery_strategy(error_info)
+                    if recovery_strategy:
+                        success, params = recovery_strategy(error_info)
+                        if success:
+                            # 应用恢复参数
+                            if "provider" in params and params["provider"] != provider:
+                                logger.info(f"切换提供商: {provider} -> {params['provider']}")
+                                provider = params["provider"]
+                                process_function = provider_functions.get(provider, _mock_response)
+                            
+                            if "timeout" in params and params["timeout"] != timeout:
+                                logger.info(f"调整超时时间: {timeout} -> {params['timeout']}")
+                                timeout = params["timeout"]
+                            
+                            # 应用其他恢复参数...
+                            wait_time = 2 ** retries  # 指数退避
+                            continue
+                
+                except Exception as handle_error:
+                    logger.error(f"尝试恢复错误时失败: {handle_error}")
+            
+            # 如果没有使用错误处理器或恢复失败，使用基本的重试机制
             wait_time = 2 ** retries  # 指数退避
             logger.warning(f"调用LLM失败 ({retries}/{max_retries}): {e}")
             
-            if retries < max_retries:
-                logger.info(f"等待 {wait_time} 秒后重试...")
-                time.sleep(wait_time)
-            else:
+            if retries >= max_retries:
                 logger.error(f"达到最大重试次数，返回模拟响应")
                 return _mock_response(prompt, None, timeout)
 
@@ -509,6 +935,8 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='启用详细输出')
     parser.add_argument('--debug', action='store_true', help='启用调试输出')
     parser.add_argument('--timeout', type=int, default=60, help='API请求超时时间（秒）')
+    parser.add_argument('--error-report', action='store_true', help='在错误发生时显示详细的错误报告')
+    parser.add_argument('--cross-platform', action='store_true', help='使用跨平台兼容模式')
     args = parser.parse_args()
     
     # 设置日志级别
@@ -520,20 +948,52 @@ def main():
         logger.info("详细日志级别已启用")
     
     # 记录系统信息
-    logger.debug(f"操作系统: {platform.system()} {platform.release()}")
-    logger.debug(f"Python版本: {platform.python_version()}")
+    system_info = {
+        "os": platform.system(),
+        "os_version": platform.release(),
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "processor": platform.processor()
+    }
+    logger.debug(f"系统信息: {system_info}")
     logger.debug(f"命令行参数: {args}")
+
+    # 跨平台兼容性处理
+    if args.cross_platform:
+        logger.info("启用跨平台兼容模式")
+        # 针对不同操作系统进行特定处理
+        if platform.system() == "Windows":
+            logger.debug("检测到Windows系统，应用特定配置")
+            # Windows特定处理
+            os.environ["PYTHONIOENCODING"] = "utf-8"
+        elif platform.system() == "Darwin":
+            logger.debug("检测到macOS系统，应用特定配置")
+            # macOS特定处理
+        elif platform.system() == "Linux":
+            logger.debug("检测到Linux系统，应用特定配置")
+            # Linux特定处理
 
     # 从参数获取提示词
     prompt = args.prompt
 
     # 如果指定了文件，读取内容
     file_content = None
-    if args.file and os.path.exists(args.file):
-        with open(args.file, 'r', encoding='utf-8') as f:
-            file_content = f.read()
-        prompt = f"{prompt}\n\n文件内容:\n{file_content}"
-        logger.debug(f"已加载文件: {args.file}, 内容长度: {len(file_content)}字符")
+    if args.file:
+        file_path = Path(args.file)
+        if not file_path.exists():
+            logger.error(f"指定的文件不存在: {args.file}")
+            print(f"错误: 文件 '{args.file}' 不存在", file=sys.stderr)
+            sys.exit(1)
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+            prompt = f"{prompt}\n\n文件内容:\n{file_content}"
+            logger.debug(f"已加载文件: {args.file}, 内容长度: {len(file_content)}字符")
+        except Exception as e:
+            logger.error(f"读取文件时出错: {e}")
+            print(f"读取文件 '{args.file}' 时出错: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # 调用LLM
     try:
@@ -545,6 +1005,43 @@ def main():
     except Exception as e:
         logger.error(f"调用LLM时出错: {e}")
         print(f"调用LLM时出错: {e}", file=sys.stderr)
+        
+        # 如果错误处理模块可用且启用了错误报告
+        if error_handler_available and args.error_report:
+            handler = get_error_handler()
+            error_info = handler.handle_error(e, "plan_exec_llm.main", 
+                                           {"provider": args.provider, "model": args.model})
+            
+            # 如果错误已自动恢复，重试请求
+            if error_info.resolved:
+                logger.info("错误已自动恢复，重试请求")
+                try:
+                    response = query_planner_llm(prompt, args.provider, args.model, timeout=args.timeout)
+                    print(f"\n{'-'*50}\nLLM响应:\n{response}\n{'-'*50}")
+                    sys.exit(0)
+                except Exception as retry_error:
+                    logger.error(f"重试请求失败: {retry_error}")
+            
+            # 打印错误报告
+            report = handler.get_error_report()
+            print("\n错误报告:")
+            print(f"错误类型: {error_info.error_type}")
+            print(f"错误类别: {error_info.category.value}")
+            print(f"严重程度: {error_info.severity.name}")
+            print(f"来源: {error_info.source}")
+            print(f"已尝试恢复: {error_info.recovery_attempts} 次")
+            print(f"是否已解决: {'是' if error_info.resolved else '否'}")
+            
+            # 使用错误模式识别器提供建议
+            recognizer = get_error_recognizer()
+            recovery_strategy = recognizer.get_recovery_strategy(error_info)
+            if recovery_strategy:
+                success, params = recovery_strategy(error_info)
+                if "retry_message" in params:
+                    print(f"\n恢复建议: {params['retry_message']}")
+                elif "error_message" in params:
+                    print(f"\n错误详情: {params['error_message']}")
+        
         sys.exit(1)
 
 if __name__ == "__main__":
