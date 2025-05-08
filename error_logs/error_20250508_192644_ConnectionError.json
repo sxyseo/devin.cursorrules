@@ -1,0 +1,23 @@
+{
+  "message": "连接始终失败",
+  "error_type": "ConnectionError",
+  "timestamp": 1746703604.0685396,
+  "category": "network",
+  "severity": "MEDIUM",
+  "source": "plan_exec_llm",
+  "traceback": "Traceback (most recent call last):\n  File \"D:\\dev\\devin.cursorrules_new\\tools\\plan_exec_llm.py\", line 531, in query_planner_llm\n    result = process_function(prompt, model, timeout)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1124, in __call__\n    return self._mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1128, in _mock_call\n    return self._execute_mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1183, in _execute_mock_call\n    raise effect\n  File \"D:\\dev\\devin.cursorrules_new\\tools\\plan_exec_llm.py\", line 531, in query_planner_llm\n    result = process_function(prompt, model, timeout)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1124, in __call__\n    return self._mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1128, in _mock_call\n    return self._execute_mock_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"D:\\Program Files\\Python311\\Lib\\unittest\\mock.py\", line 1183, in _execute_mock_call\n    raise effect\nConnectionError: 连接始终失败\n",
+  "context": {
+    "provider": "openai",
+    "model": null,
+    "max_retries": 2,
+    "timeout": 60,
+    "prompt_length": 5,
+    "prompt_start": "测试提示词"
+  },
+  "system_info": {
+    "os": "Windows",
+    "platform": "Windows-10-10.0.26100-SP0",
+    "python_version": "3.11.9",
+    "hostname": "DevPlus"
+  }
+}

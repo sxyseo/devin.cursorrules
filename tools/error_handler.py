@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
 """
-错误处理与恢复模块
+错误处理模块
 
-此模块提供错误分类、诊断和自动恢复功能，用于提高多智能体系统的稳定性和可靠性。
-主要功能包括：
-1. 错误分类：将错误分为网络错误、资源错误、逻辑错误等不同类别
-2. 错误诊断：分析错误原因和影响范围
-3. 恢复策略：提供针对不同错误的恢复方案
-4. 错误报告：生成结构化的错误报告
+提供错误分类、诊断和自动恢复功能，用于增强系统的可靠性和稳定性
 """
 
-import logging
-import time
-import traceback
-import sys
-from enum import Enum
-from typing import Dict, List, Any, Optional, Callable, Tuple, Union
-from dataclasses import dataclass
-import json
 import os
-from pathlib import Path
+import sys
+import logging
+import traceback
+import json
+import time
 import platform
+from enum import Enum, auto
+from typing import Dict, List, Optional, Any, Union, Tuple, Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+import datetime
 
 # 配置日志
 logging.basicConfig(
@@ -30,134 +26,85 @@ logging.basicConfig(
 )
 logger = logging.getLogger("error_handler")
 
-class ErrorSeverity(Enum):
-    """错误严重程度枚举"""
-    LOW = 1      # 轻微错误，不影响主要功能
-    MEDIUM = 2   # 中等错误，影响部分功能但系统可继续运行
-    HIGH = 3     # 严重错误，影响关键功能
-    CRITICAL = 4 # 致命错误，系统无法继续运行
-
+# 错误类别枚举
 class ErrorCategory(Enum):
     """错误类别枚举"""
-    NETWORK = "network"           # 网络连接错误
-    API = "api"                   # API调用错误
-    RESOURCE = "resource"         # 资源访问或分配错误
-    LOGIC = "logic"               # 业务逻辑错误
-    PERMISSION = "permission"     # 权限错误
-    CONFIG = "config"             # 配置错误
-    DATA = "data"                 # 数据处理错误
-    TIMEOUT = "timeout"           # 超时错误
-    DEPENDENCY = "dependency"     # 依赖项错误
-    UNKNOWN = "unknown"           # 未知错误
+    NETWORK = "network"
+    API = "api"
+    AUTHENTICATION = "authentication"
+    TIMEOUT = "timeout"
+    RESOURCE = "resource"
+    DEPENDENCY = "dependency"
+    PERMISSION = "permission"
+    DATA = "data"
+    SYNTAX = "syntax"
+    LOGIC = "logic"
+    SYSTEM = "system"
+    UNKNOWN = "unknown"
+
+# 错误严重程度枚举
+class ErrorSeverity(Enum):
+    """错误严重程度枚举"""
+    LOW = auto()
+    MEDIUM = auto()
+    HIGH = auto()
+    CRITICAL = auto()
 
 @dataclass
 class ErrorInfo:
     """错误信息数据类"""
-    message: str                      # 错误消息
-    error_type: str                   # 错误类型
-    timestamp: float                  # 错误发生时间戳
-    category: ErrorCategory           # 错误类别
-    severity: ErrorSeverity           # 错误严重程度
-    source: str                       # 错误来源
-    traceback: Optional[str] = None   # 错误堆栈
-    context: Dict[str, Any] = None    # 错误上下文信息
-    recovery_attempts: int = 0        # 恢复尝试次数
-    resolved: bool = False            # 是否已解决
+    error_type: str
+    message: str
+    source: str
+    category: ErrorCategory
+    severity: ErrorSeverity
+    timestamp: float = field(default_factory=time.time)
+    stack_trace: Optional[str] = None
+    context: Dict[str, Any] = field(default_factory=dict)
+    recovery_attempts: int = 0
+    resolved: bool = False
+    resolution_method: Optional[str] = None
+    system_info: Dict[str, str] = field(default_factory=dict)
 
 class ErrorHandler:
-    """错误处理器"""
+    """错误处理器类"""
     
-    def __init__(self, log_dir: Optional[str] = None, max_retries: int = 3):
+    def __init__(self, log_dir: Optional[str] = None, max_log_size: int = 1024*1024*10):
         """初始化错误处理器
         
         Args:
-            log_dir: 错误日志目录，默认为"error_logs"
-            max_retries: 最大重试次数
+            log_dir: 错误日志目录，默认为'error_logs'
+            max_log_size: 日志文件最大大小，默认为10MB
         """
-        self.max_retries = max_retries
-        self.errors: List[ErrorInfo] = []
-        self.recovery_strategies: Dict[ErrorCategory, List[Callable]] = self._init_recovery_strategies()
+        self.log_dir = Path(log_dir or 'error_logs')
+        self.max_log_size = max_log_size
+        self.errors = []  # 保存当前会话中的错误
+        self.recovery_strategies = {}  # 错误恢复策略映射
+        self.system_info = self._collect_system_info()
         
-        # 设置日志目录
-        self.log_dir = Path(log_dir or "error_logs")
+        # 确保日志目录存在
         self.log_dir.mkdir(exist_ok=True)
         
-        # 记录系统信息
-        self.system_info = {
-            "os": platform.system(),
-            "platform": platform.platform(),
-            "python_version": platform.python_version(),
-            "hostname": platform.node()
-        }
-        
-        logger.info(f"错误处理器初始化完成，日志目录: {self.log_dir}")
+        logger.info(f"错误处理器初始化完成，日志目录: {self.log_dir.absolute()}")
     
-    def _init_recovery_strategies(self) -> Dict[ErrorCategory, List[Callable]]:
-        """初始化不同错误类别的恢复策略"""
-        return {
-            ErrorCategory.NETWORK: [self._network_recovery],
-            ErrorCategory.API: [self._api_recovery],
-            ErrorCategory.RESOURCE: [self._resource_recovery],
-            ErrorCategory.LOGIC: [self._logic_recovery],
-            ErrorCategory.PERMISSION: [self._permission_recovery],
-            ErrorCategory.CONFIG: [self._config_recovery],
-            ErrorCategory.DATA: [self._data_recovery],
-            ErrorCategory.TIMEOUT: [self._timeout_recovery],
-            ErrorCategory.DEPENDENCY: [self._dependency_recovery],
-            ErrorCategory.UNKNOWN: [self._fallback_recovery]
-        }
-    
-    def handle_error(self, error: Exception, source: str, 
-                    context: Dict[str, Any] = None,
-                    severity: ErrorSeverity = None) -> ErrorInfo:
-        """处理错误并返回错误信息
+    def _collect_system_info(self) -> Dict[str, str]:
+        """收集系统信息
         
-        Args:
-            error: 异常对象
-            source: 错误来源
-            context: 错误上下文信息
-            severity: 错误严重程度
-            
         Returns:
-            ErrorInfo: 错误信息对象
+            Dict[str, str]: 系统信息
         """
-        # 获取错误堆栈
-        tb_str = traceback.format_exc()
-        
-        # 错误分类
-        category, error_severity = self._classify_error(error, source)
-        
-        # 如果外部指定了严重程度，则使用外部指定的
-        if severity:
-            error_severity = severity
-        
-        # 创建错误信息
-        error_info = ErrorInfo(
-            message=str(error),
-            error_type=type(error).__name__,
-            timestamp=time.time(),
-            category=category,
-            severity=error_severity,
-            source=source,
-            traceback=tb_str,
-            context=context or {},
-            recovery_attempts=0,
-            resolved=False
-        )
-        
-        # 记录错误
-        self.errors.append(error_info)
-        
-        # 记录日志
-        self._log_error(error_info)
-        
-        # 尝试恢复
-        self._try_recover(error_info)
-        
-        return error_info
+        return {
+            "os": platform.system(),
+            "os_version": platform.release(),
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+            "processor": platform.processor(),
+            "hostname": platform.node(),
+            "time": datetime.datetime.now().isoformat()
+        }
     
-    def _classify_error(self, error: Exception, source: str) -> Tuple[ErrorCategory, ErrorSeverity]:
-        """对错误进行分类
+    def _categorize_error(self, error: Exception, source: str) -> Tuple[ErrorCategory, ErrorSeverity]:
+        """对错误进行分类和评估严重程度
         
         Args:
             error: 异常对象
@@ -169,82 +116,131 @@ class ErrorHandler:
         error_type = type(error).__name__
         error_msg = str(error).lower()
         
-        # 网络错误
-        if any(net_err in error_type for net_err in ["ConnectionError", "ConnectionRefused", "NetworkError"]):
+        # 网络相关错误
+        if any(err in error_type for err in ['ConnectionError', 'ConnectionRefusedError', 'ConnectionResetError', 'ConnectionAbortedError']):
             return ErrorCategory.NETWORK, ErrorSeverity.MEDIUM
         
-        # API错误
-        if "api" in source.lower() or any(api_err in error_type for api_err in ["APIError", "RequestError"]):
-            return ErrorCategory.API, ErrorSeverity.MEDIUM
-        
         # 超时错误
-        if "timeout" in error_type.lower() or "timeout" in error_msg:
+        if 'TimeoutError' in error_type or 'timeout' in error_msg:
             return ErrorCategory.TIMEOUT, ErrorSeverity.MEDIUM
         
+        # API错误
+        if 'API' in error_type or 'api' in error_msg or 'key' in error_msg:
+            if 'authentication' in error_msg or 'unauthorized' in error_msg or 'auth' in error_msg:
+                return ErrorCategory.AUTHENTICATION, ErrorSeverity.HIGH
+            return ErrorCategory.API, ErrorSeverity.MEDIUM
+        
         # 资源错误
-        if any(res_err in error_type for res_err in ["ResourceError", "MemoryError", "DiskError"]):
+        if 'MemoryError' in error_type or 'memory' in error_msg or 'resource' in error_msg:
             return ErrorCategory.RESOURCE, ErrorSeverity.HIGH
         
-        # 权限错误
-        if any(perm_err in error_type for perm_err in ["PermissionError", "AccessDenied"]):
-            return ErrorCategory.PERMISSION, ErrorSeverity.HIGH
-        
-        # 配置错误
-        if "config" in error_msg or "configuration" in error_msg:
-            return ErrorCategory.CONFIG, ErrorSeverity.MEDIUM
-        
-        # 数据错误
-        if any(data_err in error_type for data_err in ["ValueError", "TypeError", "JSONDecodeError"]):
-            return ErrorCategory.DATA, ErrorSeverity.MEDIUM
-        
         # 依赖错误
-        if any(dep_err in error_type for dep_err in ["ImportError", "ModuleNotFoundError"]):
+        if 'ImportError' in error_type or 'ModuleNotFoundError' in error_type:
             return ErrorCategory.DEPENDENCY, ErrorSeverity.HIGH
         
-        # 默认为未知错误，中等严重程度
+        # 权限错误
+        if 'PermissionError' in error_type or 'permission' in error_msg or 'access' in error_msg:
+            return ErrorCategory.PERMISSION, ErrorSeverity.HIGH
+        
+        # 数据错误
+        if any(err in error_type for err in ['ValueError', 'TypeError', 'KeyError', 'IndexError', 'AttributeError']):
+            return ErrorCategory.DATA, ErrorSeverity.MEDIUM
+        
+        # 语法错误
+        if 'SyntaxError' in error_type:
+            return ErrorCategory.SYNTAX, ErrorSeverity.HIGH
+        
+        # 逻辑错误
+        if 'AssertionError' in error_type or 'logic' in error_msg:
+            return ErrorCategory.LOGIC, ErrorSeverity.MEDIUM
+        
+        # 系统错误
+        if 'OSError' in error_type or 'system' in error_msg:
+            return ErrorCategory.SYSTEM, ErrorSeverity.HIGH
+        
+        # 默认为未知错误
         return ErrorCategory.UNKNOWN, ErrorSeverity.MEDIUM
     
+    def handle_error(self, error: Exception, source: str, context: Dict[str, Any] = None) -> ErrorInfo:
+        """处理错误
+        
+        Args:
+            error: 异常对象
+            source: 错误来源
+            context: 错误上下文信息
+            
+        Returns:
+            ErrorInfo: 错误信息对象
+        """
+        # 对错误进行分类
+        category, severity = self._categorize_error(error, source)
+        
+        # 创建错误信息对象
+        error_info = ErrorInfo(
+            error_type=type(error).__name__,
+            message=str(error),
+            source=source,
+            category=category,
+            severity=severity,
+            stack_trace=traceback.format_exc(),
+            context=context or {},
+            system_info=self.system_info
+        )
+        
+        # 记录错误
+        self.errors.append(error_info)
+        
+        # 记录到日志文件
+        self._log_error(error_info)
+        
+        # 尝试自动恢复
+        resolved = self._try_recover(error_info)
+        if resolved:
+            error_info.resolved = True
+            logger.info(f"错误已自动恢复: {error_info.error_type} - {error_info.message}")
+        else:
+            logger.warning(f"无法自动恢复错误: {error_info.error_type} - {error_info.message}")
+        
+        return error_info
+    
     def _log_error(self, error_info: ErrorInfo) -> None:
-        """记录错误到日志文件
+        """将错误记录到日志文件
         
         Args:
             error_info: 错误信息对象
         """
-        # 记录到应用日志
-        log_level = {
-            ErrorSeverity.LOW: logging.INFO,
-            ErrorSeverity.MEDIUM: logging.WARNING,
-            ErrorSeverity.HIGH: logging.ERROR,
-            ErrorSeverity.CRITICAL: logging.CRITICAL
-        }.get(error_info.severity, logging.ERROR)
+        # 创建日志文件名
+        timestamp = datetime.datetime.fromtimestamp(error_info.timestamp).strftime("%Y%m%d")
+        log_file = self.log_dir / f"error_{timestamp}.log"
         
-        logger.log(log_level, f"错误 [{error_info.category.value}]: {error_info.message} (来源: {error_info.source})")
+        # 检查日志文件大小，如果超过最大大小则创建新文件
+        if log_file.exists() and log_file.stat().st_size > self.max_log_size:
+            time_str = datetime.datetime.fromtimestamp(error_info.timestamp).strftime("%Y%m%d_%H%M%S")
+            log_file = self.log_dir / f"error_{time_str}.log"
         
-        # 将错误信息序列化为JSON并保存到文件
-        timestamp_str = time.strftime("%Y%m%d_%H%M%S", time.localtime(error_info.timestamp))
-        error_file = self.log_dir / f"error_{timestamp_str}_{error_info.error_type}.json"
-        
-        error_data = {
-            "message": error_info.message,
+        # 将错误信息转换为JSON格式
+        error_dict = {
+            "timestamp": datetime.datetime.fromtimestamp(error_info.timestamp).isoformat(),
             "error_type": error_info.error_type,
-            "timestamp": error_info.timestamp,
+            "message": error_info.message,
+            "source": error_info.source,
             "category": error_info.category.value,
             "severity": error_info.severity.name,
-            "source": error_info.source,
-            "traceback": error_info.traceback,
+            "stack_trace": error_info.stack_trace,
             "context": error_info.context,
-            "system_info": self.system_info
+            "system_info": error_info.system_info
         }
         
+        # 写入日志文件
         try:
-            with open(error_file, 'w', encoding='utf-8') as f:
-                json.dump(error_data, f, indent=2, ensure_ascii=False)
-            logger.debug(f"错误详情已记录到 {error_file}")
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(error_dict, ensure_ascii=False) + "\n")
+                logger.debug(f"错误信息已记录到 {log_file}")
         except Exception as e:
-            logger.error(f"记录错误详情失败: {e}")
+            logger.error(f"记录错误信息到日志文件时出错: {e}")
     
     def _try_recover(self, error_info: ErrorInfo) -> bool:
-        """尝试从错误中恢复
+        """尝试自动恢复错误
         
         Args:
             error_info: 错误信息对象
@@ -252,207 +248,113 @@ class ErrorHandler:
         Returns:
             bool: 是否成功恢复
         """
-        if error_info.recovery_attempts >= self.max_retries:
-            logger.warning(f"错误已达到最大重试次数 ({self.max_retries})，不再尝试恢复")
-            return False
+        # 简单恢复策略
+        if error_info.category in [ErrorCategory.NETWORK, ErrorCategory.TIMEOUT, ErrorCategory.API]:
+            # 网络、超时和API错误通常可以通过重试解决
+            error_info.recovery_attempts += 1
+            error_info.resolution_method = "retry"
+            # 实际的重试逻辑在调用此方法的代码中实现
+            logger.info(f"建议重试以解决 {error_info.category.value} 错误，当前重试次数: {error_info.recovery_attempts}")
+            return False  # 返回False，因为实际重试在外部进行
         
-        # 获取对应类别的恢复策略
-        strategies = self.recovery_strategies.get(error_info.category, [self._fallback_recovery])
-        
-        # 递增恢复尝试次数
-        error_info.recovery_attempts += 1
-        
-        # 尝试每个恢复策略
-        for strategy in strategies:
+        if error_info.category == ErrorCategory.RESOURCE:
+            # 资源错误可能需要释放资源
             try:
-                logger.info(f"尝试恢复错误 (尝试 {error_info.recovery_attempts}/{self.max_retries}): {error_info.message}")
-                if strategy(error_info):
-                    error_info.resolved = True
-                    logger.info(f"错误已成功恢复: {error_info.message}")
-                    return True
+                import gc
+                gc.collect()
+                error_info.recovery_attempts += 1
+                error_info.resolution_method = "gc_collect"
+                logger.info("已执行垃圾回收，尝试释放内存资源")
+                return True
             except Exception as e:
-                logger.error(f"恢复策略执行失败: {e}")
+                logger.error(f"执行垃圾回收时出错: {e}")
+                return False
         
-        logger.warning(f"所有恢复策略均失败，错误未解决: {error_info.message}")
+        # 不知道如何恢复的错误
         return False
     
-    # 不同类型的恢复策略
-    def _network_recovery(self, error_info: ErrorInfo) -> bool:
-        """网络错误恢复策略"""
-        # 实现网络重连逻辑
-        logger.info("执行网络错误恢复策略")
-        # 可以实现网络连接重试、切换备用服务器等
+    def register_recovery_strategy(self, category: ErrorCategory, strategy: Callable[[ErrorInfo], bool]) -> None:
+        """注册错误恢复策略
         
-        # 模拟恢复过程
-        time.sleep(1)  # 等待网络恢复
-        return "connection refused" not in error_info.message.lower()  # 简单示例
-    
-    def _api_recovery(self, error_info: ErrorInfo) -> bool:
-        """API错误恢复策略"""
-        logger.info("执行API错误恢复策略")
-        # 可以实现API重试、降级服务等
-        
-        # 检查是否是认证错误
-        if "authentication" in error_info.message.lower() or "unauthorized" in error_info.message.lower():
-            logger.info("检测到认证错误，尝试刷新凭证")
-            # 实现凭证刷新逻辑
-            return False  # 需要实际实现
-        
-        # 检查是否是速率限制
-        if "rate limit" in error_info.message.lower() or "too many requests" in error_info.message.lower():
-            wait_time = min(2 ** error_info.recovery_attempts, 60)  # 指数退避，最多等待60秒
-            logger.info(f"检测到速率限制，等待 {wait_time} 秒后重试")
-            time.sleep(wait_time)
-            return True
-        
-        return False
-    
-    def _resource_recovery(self, error_info: ErrorInfo) -> bool:
-        """资源错误恢复策略"""
-        logger.info("执行资源错误恢复策略")
-        # 可以实现释放资源、清理缓存等
-        
-        if "memory" in error_info.message.lower():
-            logger.info("检测到内存问题，尝试释放内存")
-            # 触发垃圾回收
-            import gc
-            gc.collect()
-            return True
-        
-        return False
-    
-    def _logic_recovery(self, error_info: ErrorInfo) -> bool:
-        """逻辑错误恢复策略"""
-        logger.info("执行逻辑错误恢复策略")
-        # 通常逻辑错误需要人工干预
-        return False
-    
-    def _permission_recovery(self, error_info: ErrorInfo) -> bool:
-        """权限错误恢复策略"""
-        logger.info("执行权限错误恢复策略")
-        # 可以尝试提升权限、使用备用凭证等
-        return False
-    
-    def _config_recovery(self, error_info: ErrorInfo) -> bool:
-        """配置错误恢复策略"""
-        logger.info("执行配置错误恢复策略")
-        # 可以尝试加载备用配置、使用默认值等
-        return False
-    
-    def _data_recovery(self, error_info: ErrorInfo) -> bool:
-        """数据错误恢复策略"""
-        logger.info("执行数据错误恢复策略")
-        # 可以尝试数据修复、使用缓存数据等
-        return False
-    
-    def _timeout_recovery(self, error_info: ErrorInfo) -> bool:
-        """超时错误恢复策略"""
-        logger.info("执行超时错误恢复策略")
-        # 可以实现延长超时时间、切换到轻量级服务等
-        
-        # 使用指数退避算法
-        wait_time = min(2 ** error_info.recovery_attempts, 30)  # 最多等待30秒
-        logger.info(f"等待 {wait_time} 秒后重试")
-        time.sleep(wait_time)
-        return True
-    
-    def _dependency_recovery(self, error_info: ErrorInfo) -> bool:
-        """依赖错误恢复策略"""
-        logger.info("执行依赖错误恢复策略")
-        # 可以尝试安装依赖、使用备用依赖等
-        return False
-    
-    def _fallback_recovery(self, error_info: ErrorInfo) -> bool:
-        """通用恢复策略，作为其他策略的后备"""
-        logger.info("执行通用恢复策略")
-        # 通用恢复逻辑，例如简单的重试
-        time.sleep(1)
-        return False
+        Args:
+            category: 错误类别
+            strategy: 恢复策略函数，接收ErrorInfo对象，返回是否成功恢复
+        """
+        self.recovery_strategies[category] = strategy
+        logger.info(f"已注册 {category.value} 类型错误的恢复策略")
     
     def get_error_report(self) -> Dict[str, Any]:
-        """生成错误报告
+        """获取错误报告
         
         Returns:
-            Dict[str, Any]: 包含错误统计信息的报告
+            Dict[str, Any]: 错误报告
         """
         if not self.errors:
-            return {"total_errors": 0, "categories": {}, "severity": {}}
+            return {"status": "no_errors", "message": "没有记录的错误"}
         
-        # 统计错误类别
-        categories = {}
+        # 统计各类型错误的数量
+        error_counts = {}
         for error in self.errors:
-            cat = error.category.value
-            if cat in categories:
-                categories[cat] += 1
+            category = error.category.value
+            if category in error_counts:
+                error_counts[category] += 1
             else:
-                categories[cat] = 1
+                error_counts[category] = 1
         
-        # 统计错误严重程度
-        severity = {}
-        for error in self.errors:
-            sev = error.severity.name
-            if sev in severity:
-                severity[sev] += 1
-            else:
-                severity[sev] = 1
-        
-        # 统计恢复情况
-        resolved = sum(1 for error in self.errors if error.resolved)
+        # 最近的5个错误
+        recent_errors = []
+        for error in self.errors[-5:]:
+            recent_errors.append({
+                "timestamp": datetime.datetime.fromtimestamp(error.timestamp).isoformat(),
+                "error_type": error.error_type,
+                "message": error.message,
+                "source": error.source,
+                "category": error.category.value,
+                "severity": error.severity.name,
+                "resolved": error.resolved
+            })
         
         return {
+            "status": "has_errors",
             "total_errors": len(self.errors),
-            "resolved_errors": resolved,
-            "resolution_rate": resolved / len(self.errors) if self.errors else 0,
-            "categories": categories,
-            "severity": severity,
-            "latest_error": {
-                "message": self.errors[-1].message,
-                "type": self.errors[-1].error_type,
-                "source": self.errors[-1].source,
-                "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.errors[-1].timestamp))
-            } if self.errors else None
+            "error_counts": error_counts,
+            "recent_errors": recent_errors,
+            "resolved_count": sum(1 for e in self.errors if e.resolved),
+            "system_info": self.system_info
         }
     
-    def clear_resolved_errors(self) -> int:
-        """清除已解决的错误记录
-        
-        Returns:
-            int: 清除的错误数量
-        """
-        resolved_count = sum(1 for error in self.errors if error.resolved)
-        self.errors = [error for error in self.errors if not error.resolved]
-        logger.info(f"已清除 {resolved_count} 个已解决的错误记录")
-        return resolved_count
+    def clear_errors(self) -> None:
+        """清除记录的错误"""
+        self.errors.clear()
+        logger.info("已清除所有记录的错误")
 
-# 创建全局错误处理器实例
-_error_handler: Optional[ErrorHandler] = None
+# 单例模式
+_error_handler = None
 
-def get_error_handler(log_dir: Optional[str] = None, max_retries: int = 3) -> ErrorHandler:
-    """获取或创建全局错误处理器实例
+def get_error_handler(log_dir: Optional[str] = None) -> ErrorHandler:
+    """获取或创建错误处理器实例
     
     Args:
-        log_dir: 错误日志目录
-        max_retries: 最大重试次数
-    
+        log_dir: 错误日志目录，默认为'error_logs'
+        
     Returns:
         ErrorHandler: 错误处理器实例
     """
     global _error_handler
     if _error_handler is None:
-        _error_handler = ErrorHandler(log_dir, max_retries)
+        _error_handler = ErrorHandler(log_dir)
     return _error_handler
 
-def handle_exception(source: str, context: Dict[str, Any] = None,
-                    severity: ErrorSeverity = None) -> Callable:
-    """错误处理装饰器
+def handle_exception(source: str, context: Dict[str, Any] = None, severity: ErrorSeverity = ErrorSeverity.MEDIUM):
+    """装饰器，用于捕获和处理函数中的异常
     
     Args:
         source: 错误来源
-        context: 错误上下文
+        context: 错误上下文信息
         severity: 错误严重程度
-    
+        
     Returns:
-        Callable: 装饰器函数
+        装饰器函数
     """
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -460,65 +362,29 @@ def handle_exception(source: str, context: Dict[str, Any] = None,
                 return func(*args, **kwargs)
             except Exception as e:
                 handler = get_error_handler()
-                error_info = handler.handle_error(e, source, context, severity)
+                error_info = handler.handle_error(e, source, context)
+                # 如果错误已经被自动恢复，重新调用函数
                 if error_info.resolved:
-                    # 如果错误已解决，尝试重新执行函数
+                    logger.info(f"错误已自动恢复，重新调用函数 {func.__name__}")
                     return func(*args, **kwargs)
-                else:
-                    # 否则重新抛出异常
-                    raise
+                # 否则重新抛出异常
+                logger.error(f"函数 {func.__name__} 执行时出错: {e}")
+                raise
         return wrapper
     return decorator
 
-# 测试函数
-def main():
-    parser = argparse.ArgumentParser(description='错误处理测试工具')
-    parser.add_argument('--error-type', type=str, default='network',
-                       choices=['network', 'api', 'timeout', 'resource', 'data'],
-                       help='要测试的错误类型')
-    parser.add_argument('--verbose', '-v', action='store_true', help='启用详细日志')
-    args = parser.parse_args()
-    
-    # 设置日志级别
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
-    
-    # 初始化错误处理器
-    handler = get_error_handler()
-    
-    # 测试不同类型的错误
-    try:
-        if args.error_type == 'network':
-            raise ConnectionError("模拟网络连接错误")
-        elif args.error_type == 'api':
-            raise ValueError("API调用失败: 无效的认证令牌")
-        elif args.error_type == 'timeout':
-            raise TimeoutError("操作超时")
-        elif args.error_type == 'resource':
-            raise MemoryError("内存不足")
-        elif args.error_type == 'data':
-            raise ValueError("数据解析错误: 无效的JSON格式")
-        else:
-            raise RuntimeError("未知错误")
-            
-    except Exception as e:
-        # 处理错误
-        error_info = handler.handle_error(e, "错误测试模块", {"test_mode": True})
-        
-        # 打印错误报告
-        report = handler.get_error_report()
-        print(f"\n错误报告:")
-        print(f"总错误数: {report['total_errors']}")
-        print(f"已解决错误数: {report['resolved_errors']}")
-        print(f"解决率: {report['resolution_rate']*100:.1f}%")
-        print(f"错误类别统计: {report['categories']}")
-        print(f"错误严重程度统计: {report['severity']}")
-        
-        if error_info.resolved:
-            print(f"\n错误已成功恢复: {error_info.message}")
-        else:
-            print(f"\n错误未能恢复: {error_info.message}")
-
 if __name__ == "__main__":
-    import argparse
-    main() 
+    # 测试错误处理器
+    handler = get_error_handler()
+    try:
+        # 测试网络错误
+        raise ConnectionError("测试连接错误")
+    except Exception as e:
+        error_info = handler.handle_error(e, "测试源", {"test": "context"})
+        print(f"错误类别: {error_info.category.value}")
+        print(f"错误严重程度: {error_info.severity.name}")
+        print(f"是否已解决: {error_info.resolved}")
+    
+    # 输出错误报告
+    report = handler.get_error_report()
+    print(json.dumps(report, indent=2, ensure_ascii=False)) 

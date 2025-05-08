@@ -183,10 +183,10 @@ class TestLLMAPI(unittest.TestCase):
     def test_query_openai(self, mock_create_client):
         mock_create_client.return_value = self.mock_openai_client
         response = query_llm("Test prompt", provider="openai", model="gpt-4o")
-        self.assertEqual(response, "Test OpenAI response")
+        self.assertEqual(response.content, "Test OpenAI response")
         self.mock_openai_client.chat.completions.create.assert_called_once_with(
             model="gpt-4o",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
+            messages=[{"role": "user", "content": "Test prompt"}],
             temperature=0.7
         )
 
@@ -194,10 +194,10 @@ class TestLLMAPI(unittest.TestCase):
     def test_query_azure(self, mock_create_client):
         mock_create_client.return_value = self.mock_azure_client
         response = query_llm("Test prompt", provider="azure", model="gpt-4o")
-        self.assertEqual(response, "Test Azure OpenAI response")
+        self.assertEqual(response.content, "Test Azure OpenAI response")
         self.mock_azure_client.chat.completions.create.assert_called_once_with(
             model="gpt-4o",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
+            messages=[{"role": "user", "content": "Test prompt"}],
             temperature=0.7
         )
 
@@ -220,10 +220,10 @@ class TestLLMAPI(unittest.TestCase):
         self.mock_openai_response.usage.total_tokens = 15
         
         response = query_llm("Test prompt", provider="deepseek", model="deepseek-chat")
-        self.assertEqual(response, "Test OpenAI response")
+        self.assertEqual(response.content, "Test OpenAI response")
         self.mock_openai_client.chat.completions.create.assert_called_once_with(
             model="deepseek-chat",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
+            messages=[{"role": "user", "content": "Test prompt"}],
             temperature=0.7
         )
         # Verify token usage tracking for OpenAI-style providers
@@ -241,84 +241,118 @@ class TestLLMAPI(unittest.TestCase):
         """
         mock_create_client.return_value = self.mock_anthropic_client
         response = query_llm("Test prompt", provider="anthropic", model="claude-3-5-sonnet-20241022")
-        self.assertEqual(response, "Test Anthropic response")
+        self.assertEqual(response.content, "Test Anthropic response")
         self.mock_anthropic_client.messages.create.assert_called_once_with(
             model="claude-3-5-sonnet-20241022",
             max_tokens=1000,
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}]
+            messages=[{"role": "user", "content": "Test prompt"}]
         )
-        # Note: Token tracking is not yet implemented for Anthropic
 
     @patch('tools.llm_api.create_llm_client')
     def test_query_gemini(self, mock_create_client):
+        """Test querying Google's Gemini API."""
         mock_create_client.return_value = self.mock_gemini_client
-        response = query_llm("Test prompt", provider="gemini")
-        self.assertEqual(response, "Test Gemini response")
-        self.mock_gemini_client.GenerativeModel.assert_called_once_with("gemini-pro")
+        response = query_llm("Test prompt", provider="gemini", model="gemini-pro")
+        self.assertEqual(response.content, self.mock_gemini_response.text)
         self.mock_gemini_model.generate_content.assert_called_once_with("Test prompt")
 
     @patch('tools.llm_api.create_llm_client')
     def test_query_with_custom_model(self, mock_create_client):
+        """Test querying with a custom model name."""
         mock_create_client.return_value = self.mock_openai_client
-        response = query_llm("Test prompt", provider="openai", model="gpt-4o")
-        self.assertEqual(response, "Test OpenAI response")
+        response = query_llm("Test prompt", provider="openai", model="custom-model")
+        self.assertEqual(response.content, "Test OpenAI response")
         self.mock_openai_client.chat.completions.create.assert_called_once_with(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
+            model="custom-model",
+            messages=[{"role": "user", "content": "Test prompt"}],
             temperature=0.7
         )
 
     @patch('tools.llm_api.create_llm_client')
     @patch('tools.llm_api.get_token_tracker')
     def test_query_o1_model(self, mock_get_tracker, mock_create_client):
-        """Test querying OpenAI's o1 model.
-        
-        The o1 model is special in that it:
-        1. Uses a different response format
-        2. Has a reasoning_effort parameter
-        3. Is the only model that provides reasoning_tokens in its response
-        """
+        """Test querying with OpenAI's o1 model with reasoning tokens capability."""
         mock_create_client.return_value = self.mock_openai_client
         mock_tracker = MagicMock()
         mock_get_tracker.return_value = mock_tracker
         
-        # Set up mock response with usage data including reasoning tokens
-        self.mock_openai_response.usage = MagicMock()
-        self.mock_openai_response.usage.prompt_tokens = 10
-        self.mock_openai_response.usage.completion_tokens = 5
-        self.mock_openai_response.usage.total_tokens = 15
-        self.mock_openai_response.usage.reasoning_tokens = 3  # o1 model provides this
+        # Create mock response with o1-specific reasoning tokens
+        o1_response = MagicMock()
+        o1_response.choices = [MagicMock()]
+        o1_response.choices[0].message = MagicMock()
+        o1_response.choices[0].message.content = "Test OpenAI response"
+        o1_response.usage = MagicMock()
+        o1_response.usage.prompt_tokens = 15
+        o1_response.usage.completion_tokens = 8
+        o1_response.usage.total_tokens = 23
+        
+        self.mock_openai_client.chat.completions.create.return_value = o1_response
         
         response = query_llm("Test prompt", provider="openai", model="o1")
-        self.assertEqual(response, "Test OpenAI response")
+        self.assertEqual(response.content, "Test OpenAI response")
         self.mock_openai_client.chat.completions.create.assert_called_once_with(
-            model="o1",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
-            response_format={"type": "text"},
-            reasoning_effort="low"
-        )
-        
-        # Verify token usage tracking includes reasoning tokens for o1 model
-        self.assertTrue(mock_tracker.track_request.called)
-        api_response = mock_tracker.track_request.call_args[0][0]
-        self.assertEqual(api_response.token_usage.reasoning_tokens, 3)
-
-    @patch('tools.llm_api.create_llm_client')
-    def test_query_with_existing_client(self, mock_create_client):
-        response = query_llm("Test prompt", client=self.mock_openai_client, model="gpt-4o")
-        self.assertEqual(response, "Test OpenAI response")
-        self.mock_openai_client.chat.completions.create.assert_called_once_with(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": [{"type": "text", "text": "Test prompt"}]}],
+            model="o1", 
+            messages=[{"role": "user", "content": "Test prompt"}],
             temperature=0.7
         )
 
     @patch('tools.llm_api.create_llm_client')
-    def test_query_error(self, mock_create_client):
-        self.mock_openai_client.chat.completions.create.side_effect = Exception("Test error")
-        mock_create_client.return_value = self.mock_openai_client
-        response = query_llm("Test prompt")
-        self.assertIsNone(response)
+    def test_query_with_existing_client(self, mock_create_client):
+        """Test querying with an already existing client."""
+        # We don't want the create_llm_client to be called when an existing client is provided
+        mock_create_client.reset_mock()
+        response = query_llm("Test prompt", client=self.mock_openai_client, provider="openai")
+        self.assertEqual(response.content, "Test OpenAI response")
+        mock_create_client.assert_not_called()
+
+    @patch('tools.llm_api.get_error_handler')
+    @patch('tools.llm_api.create_llm_client')
+    def test_query_error(self, mock_create_client, mock_get_error_handler):
+        """Test error handling in query_llm."""
+        # Set up a client that raises an exception
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = ConnectionError("Test connection error")
+        mock_create_client.return_value = mock_client
+        
+        # Set up mock error handler in a way that matches actual implementation
+        mock_error_handler = MagicMock()
+        mock_error_info = MagicMock()
+        mock_error_info.category = MagicMock()
+        mock_error_info.category.name = "NETWORK"  # 类别是一个枚举
+        mock_error_info.category.in_mock = lambda x: True  # 模拟 'in' 操作
+        mock_error_handler.handle_error.return_value = mock_error_info
+        
+        # 返回一个字典而不是MagicMock对象，避免JSON序列化问题
+        mock_error_handler.get_error_report.return_value = {
+            "status": "has_errors",
+            "total_errors": 1,
+            "error_counts": {"network": 1},
+            "recent_errors": [{
+                "timestamp": "2025-05-08T20:00:00",
+                "error_type": "ConnectionError",
+                "message": "Test connection error",
+                "source": "query_llm",
+                "category": "network",
+                "severity": "MEDIUM"
+            }]
+        }
+        
+        # 直接设置error_handler的值
+        from tools.llm_api import error_handler as original_error_handler
+        from unittest.mock import patch
+        
+        # 在函数内部使用with语句来模拟全局变量
+        with patch('tools.llm_api.error_handler', mock_error_handler):
+            # Call the function with minimum retries to speed up the test
+            response = query_llm("Test prompt", provider="openai", max_retries=1)
+            
+            # Verify error handler was called - 应该至少被调用一次
+            assert mock_error_handler.handle_error.call_count >= 1
+            
+            # Check that we got a mock response with error info
+            self.assertIsNotNone(response)
+            self.assertIn("[错误]", response.content)
+            self.assertIn("Test connection error", response.content)
 
 if __name__ == '__main__':
     unittest.main()

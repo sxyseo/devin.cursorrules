@@ -107,8 +107,8 @@ class TestScreenshotVerification:
                 image_path=screenshot_path
             )
             
-            assert 'blue' in response.lower()
-            assert 'agentic.ai test page' in response.lower()
+            assert 'blue' in response.content.lower()
+            assert 'agentic.ai test page' in response.content.lower()
             mock_openai.chat.completions.create.assert_called_once()
     
     def test_llm_verification_anthropic(self, tmp_path):
@@ -142,8 +142,8 @@ class TestScreenshotVerification:
                 image_path=screenshot_path
             )
             
-            assert 'blue' in response.lower()
-            assert 'agentic.ai test page' in response.lower()
+            assert 'blue' in response.content.lower()
+            assert 'agentic.ai test page' in response.content.lower()
             mock_anthropic.messages.create.assert_called_once()
 
 # Note: End-to-end tests have been moved to tools/test_e2e.py 
