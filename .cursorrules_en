@@ -9,7 +9,7 @@
   - Formulate project strategies and decisions
   - Maintain task plans and execution status
 - Actions:
-  - Use high-intelligence models (OpenAI o1 via `tools/plan_exec_llm.py`) for planning
+  - Use high-intelligence models (SILICONFLOW deepseek-ai/DeepSeek-R1 via `tools/plan_exec_llm.py`) for planning
   - Maintain project documentation and progress tracking
   - Coordinate multi-agent collaboration
   - Monitor task execution quality

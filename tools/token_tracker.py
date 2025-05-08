@@ -149,6 +149,90 @@ class TokenTracker:
         output_cost = (completion_tokens / 1_000_000) * OUTPUT_PRICE_PER_M
         return input_cost + output_cost
     
+    @staticmethod
+    def calculate_cost(prompt_tokens: int, completion_tokens: int, model: str, provider: str = "openai") -> float:
+        """计算不同LLM提供商API的成本
+        
+        Args:
+            prompt_tokens: 输入提示的token数量
+            completion_tokens: 输出完成的token数量
+            model: 使用的模型名称
+            provider: 提供商名称
+        
+        Returns:
+            float: 估计的API调用成本（美元）
+        """
+        provider = provider.lower()
+        
+        # OpenAI及兼容API
+        if provider in ["openai", "azure", "deepseek", "local"]:
+            return TokenTracker.calculate_openai_cost(prompt_tokens, completion_tokens, model)
+        
+        # Anthropic Claude
+        elif provider == "anthropic":
+            return TokenTracker.calculate_claude_cost(prompt_tokens, completion_tokens, model)
+        
+        # 硅基流动
+        elif provider == "siliconflow":
+            if "mixtral" in model.lower():
+                # 硅基流动 mixtral 价格
+                input_price_per_m = 0.5  # $0.50 per million input tokens
+                output_price_per_m = 0.5  # $0.50 per million output tokens
+            else:
+                # 默认价格
+                input_price_per_m = 0.5
+                output_price_per_m = 0.5
+            
+            input_cost = (prompt_tokens / 1_000_000) * input_price_per_m
+            output_cost = (completion_tokens / 1_000_000) * output_price_per_m
+            return input_cost + output_cost
+        
+        # OpenRouter（使用提供商官方价格的平均值）
+        elif provider == "openrouter":
+            if "gpt-4" in model.lower() or model.lower().endswith("/gpt-4"):
+                # GPT-4系列价格
+                input_price_per_m = 10.0
+                output_price_per_m = 30.0
+            elif "claude" in model.lower():
+                # Claude系列价格
+                input_price_per_m = 3.0
+                output_price_per_m = 15.0
+            elif "mistral" in model.lower():
+                # Mistral系列价格
+                input_price_per_m = 2.0
+                output_price_per_m = 6.0
+            elif "llama" in model.lower():
+                # Llama系列价格
+                input_price_per_m = 1.0
+                output_price_per_m = 3.0
+            else:
+                # 默认价格
+                input_price_per_m = 1.0
+                output_price_per_m = 3.0
+            
+            input_cost = (prompt_tokens / 1_000_000) * input_price_per_m
+            output_cost = (completion_tokens / 1_000_000) * output_price_per_m
+            return input_cost + output_cost
+        
+        # Google Gemini
+        elif provider == "gemini":
+            if "pro" in model.lower() or "flash" in model.lower():
+                # Gemini Pro/Flash系列价格
+                input_price_per_m = 0.5  # $0.50 per million input tokens
+                output_price_per_m = 1.5  # $1.50 per million output tokens
+            else:
+                # 默认价格
+                input_price_per_m = 0.5
+                output_price_per_m = 1.5
+            
+            input_cost = (prompt_tokens / 1_000_000) * input_price_per_m
+            output_cost = (completion_tokens / 1_000_000) * output_price_per_m
+            return input_cost + output_cost
+        
+        # 默认情况下估计很低的成本
+        else:
+            return (prompt_tokens + completion_tokens) / 1_000_000 * 0.1  # $0.10 per million tokens
+    
     def track_request(self, response: APIResponse):
         """Track a new API request"""
         # Only track costs for OpenAI and Anthropic

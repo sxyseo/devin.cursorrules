@@ -9,7 +9,7 @@
   - 制定项目策略和决策
   - 维护任务计划和执行状态
 - 行动：
-  - 使用高智能模型（OpenAI o1 via `tools/plan_exec_llm.py`）进行规划
+  - 使用高智能模型（SILICONFLOW deepseek-ai/DeepSeek-R1 via `tools/plan_exec_llm.py`）进行规划
   - 维护项目文档和进度跟踪
   - 协调多智能体协作
   - 监控任务执行质量
@@ -52,7 +52,64 @@
   - 报告问题和阻塞
   - 性能指标监控
 
-## 记忆管理系统 v4
+## 记忆管理系统 v6.0
+
+### 记忆银行结构
+记忆银行由以下核心文件和可选上下文文件组成，所有文件均使用Markdown格式。文件按照清晰的层次结构构建：
+
+```
+memory-bank/
+├── projectbrief.md      # 项目简介，定义核心需求和目标
+├── productContext.md    # 产品上下文，解释项目存在的原因
+├── systemPatterns.md    # 系统模式，描述架构和技术决策
+├── techContext.md       # 技术上下文，列出使用的技术
+├── activeContext.md     # 活动上下文，当前工作焦点
+├── progress.md          # 进度跟踪，记录完成和待完成的工作
+└── extensions/          # 扩展目录，存放其他上下文文件
+    ├── api_docs.md      # API文档
+    ├── integration.md   # 集成规范
+    └── testing.md       # 测试策略
+```
+
+### 文件更新规则
+1. 文件更新的触发条件：
+   - 发现新的项目模式时
+   - 实施重大更改后
+   - 用户明确要求更新记忆银行时（使用"**update memory bank**"指令）
+   - 上下文需要澄清时
+
+2. 更新过程必须遵循以下步骤：
+   - 查看所有文件
+   - 记录当前状态
+   - 明确下一步
+   - 更新.cursorrules（如有必要）
+
+3. 核心文件职责：
+   - `projectbrief.md`：项目基础文档，是所有其他文件的基础
+   - `productContext.md`：解释项目目的、解决的问题、运行方式和用户体验目标
+   - `activeContext.md`：记录当前工作重点、最近变更、下一步和活动决策
+   - `systemPatterns.md`：记录系统架构、关键技术决策、设计模式和组件关系
+   - `techContext.md`：记录使用的技术、开发设置、技术约束和依赖关系
+   - `progress.md`：跟踪工作进度、待办事项、当前状态和已知问题
+
+### 记忆银行访问协议
+在任务开始时，必须读取所有记忆银行文件，这不是可选的。特别注意activeContext.md和progress.md，因为它们跟踪当前状态。
+
+```python
+# 使用memory_manager.py脚本访问和更新记忆银行
+python tools/memory_manager.py read all  # 读取所有记忆银行文件
+python tools/memory_manager.py update activeContext.md  # 更新特定文件
+python tools/memory_manager.py create extensions/feature_docs.md  # 创建新的上下文文件
+```
+
+### 记忆向量化存储
+使用嵌入向量对记忆进行索引，以实现语义搜索：
+
+```python
+# 使用memory_index.py脚本管理记忆向量
+python tools/memory_index.py index  # 为记忆银行创建向量索引
+python tools/memory_index.py search "系统架构设计模式"  # 语义搜索记忆
+```
 
 ### 三维记忆拓扑
 - 短期记忆：
@@ -78,25 +135,34 @@
 
 ### 记忆操作规范
 1. 自动记忆固化
-   - 每30分钟执行增量同步
+   ```bash
+   # 每30分钟执行增量同步
+   python tools/memory_sync.py --interval 30 --compress lz4
+   ```
    - 使用LZ4压缩算法
    - 自适应保留策略
    - 版本控制集成
    - 数据一致性检查
 
 2. 语义增强检索
-   - 使用BERT嵌入进行语义搜索
+   ```bash
+   # 使用BERT嵌入进行语义搜索
+   python tools/memory_search.py --query "架构设计" --threshold 0.75 --context-aware
+   ```
    - 支持多维度相似度匹配
    - 动态阈值调整
    - 上下文感知查询
    - 相关性排序优化
 
 3. 文档管理
-   - 核心文件维护
-   - 版本控制
-   - 变更追踪
-   - 知识图谱更新
-   - 文档质量检查
+   ```bash
+   # 核心文件维护
+   python tools/doc_manager.py validate  # 验证文档完整性
+   python tools/doc_manager.py version   # 版本控制
+   python tools/doc_manager.py track     # 跟踪变更
+   python tools/doc_manager.py update-kg # 更新知识图谱
+   python tools/doc_manager.py quality   # 质量检查
+   ```
 
 ## 智能体通信协议 v6
 
@@ -213,7 +279,7 @@
 
 ### LLM工具
 ```bash
-.venv/bin/python tools/llm_api.py --prompt "prompt" --provider {openai|anthropic|gemini|local|deepseek|azure} --model {model_name}
+.venv/bin/python tools/llm_api.py --prompt "prompt" --provider {openai|anthropic|gemini|local|deepseek|azure|siliconflow|openrouter} --model {model_name}
 ```
 
 ### 网页工具
@@ -231,6 +297,36 @@
 .venv/bin/python tools/screenshot_utils.py URL [--output OUTPUT] [--width WIDTH] [--height HEIGHT]
 .venv/bin/python tools/llm_api.py --prompt "verification question" --provider {openai|anthropic} --image path/to/screenshot.png
 ```
+
+## 记忆银行工作流程指令
+1. 初始化记忆银行：
+   ```bash
+   python tools/memory_init.py --project-name "项目名称" --description "项目描述"
+   ```
+
+2. 在任务开始时读取记忆：
+   ```bash
+   python tools/memory_read.py --all  # 读取所有文件
+   python tools/memory_read.py --file activeContext.md  # 读取特定文件
+   ```
+
+3. 更新记忆银行：
+   ```bash
+   python tools/memory_update.py --file progress.md --content "新的进度信息"
+   python tools/memory_update.py --all  # 更新所有需要更新的文件
+   ```
+
+4. 记忆搜索：
+   ```bash
+   python tools/memory_search.py --query "查询内容" --semantic  # 语义搜索
+   python tools/memory_search.py --query "精确内容" --exact  # 精确搜索
+   ```
+
+5. 记忆备份：
+   ```bash
+   python tools/memory_backup.py --name "backup_name"  # 创建备份
+   python tools/memory_backup.py --restore "backup_name"  # 恢复备份
+   ```
 
 ## 记忆银行集成
 
@@ -295,3 +391,30 @@
 ## Executor's Feedback or Assistance Requests
 
 (Executor: Write here when encountering blockers, questions, or need for more information during execution)
+
+# 记忆银行使用指南
+
+## 记忆库更新流程
+1. 使用"**update memory bank**"触发完整更新
+2. 确保读取所有文件，特别是activeContext.md和progress.md
+3. 遵循以下更新标准：
+   - 保留原始结构
+   - 只更新需要变更的部分
+   - 添加时间戳和版本标记
+   - 确保文件之间的一致性
+
+## 记忆库访问模式
+- 任务启动时：读取所有记忆库文件
+- 工作过程中：根据需要访问相关文件
+- 任务完成时：更新进度文件和活动上下文
+
+## 记忆库与Scratchpad集成
+- 使用Scratchpad进行临时计划和状态跟踪
+- 记忆库存储长期知识和经验
+- 定期将Scratchpad中的关键信息迁移到记忆库
+
+## 遵循的核心原则
+- 所有重要决策必须记录在记忆库中
+- 记忆库是唯一的真实来源
+- 保持记忆库的简洁和组织
+- 定期更新和同步记忆库

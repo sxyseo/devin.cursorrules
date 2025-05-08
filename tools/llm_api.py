@@ -1,4 +1,4 @@
-#!/usr/bin/env /workspace/tmp_windsurf/venv/bin/python3
+#!/usr/bin/env python3
 
 import google.generativeai as genai
 from openai import OpenAI, AzureOpenAI
@@ -9,11 +9,22 @@ from dotenv import load_dotenv
 from pathlib import Path
 import sys
 import base64
-from typing import Optional, Union, List
+import logging
+from typing import Optional, Union, List, Dict, Any
 import mimetypes
 import time
+import platform
+import httpx
 from . import token_tracker
 from .token_tracker import TokenUsage, APIResponse, get_token_tracker
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("llm_api")
 
 def load_environment():
     """Load environment variables from .env files in order of precedence"""
@@ -26,28 +37,51 @@ def load_environment():
     env_files = ['.env.local', '.env', '.env.example']
     env_loaded = False
     
-    print("Current working directory:", Path('.').absolute(), file=sys.stderr)
-    print("Looking for environment files:", env_files, file=sys.stderr)
+    logger.debug("Current working directory: %s", Path('.').absolute())
+    logger.debug("Looking for environment files: %s", env_files)
     
     for env_file in env_files:
         env_path = Path('.') / env_file
-        print(f"Checking {env_path.absolute()}", file=sys.stderr)
+        logger.debug("Checking %s", env_path.absolute())
         if env_path.exists():
-            print(f"Found {env_file}, loading variables...", file=sys.stderr)
+            logger.info("Found %s, loading variables...", env_file)
             load_dotenv(dotenv_path=env_path)
             env_loaded = True
-            print(f"Loaded environment variables from {env_file}", file=sys.stderr)
+            logger.info("Loaded environment variables from %s", env_file)
             # Print loaded keys (but not values for security)
-            with open(env_path) as f:
-                keys = [line.split('=')[0].strip() for line in f if '=' in line and not line.startswith('#')]
-                print(f"Keys loaded from {env_file}: {keys}", file=sys.stderr)
+            try:
+                with open(env_path, 'r', encoding='utf-8') as f:
+                    keys = [line.split('=')[0].strip() for line in f if '=' in line and not line.startswith('#')]
+                    logger.debug("Keys loaded from %s: %s", env_file, keys)
+            except Exception as e:
+                logger.warning("Error reading keys from %s: %s", env_file, e)
     
     if not env_loaded:
-        print("Warning: No .env files found. Using system environment variables only.", file=sys.stderr)
-        print("Available system environment variables:", list(os.environ.keys()), file=sys.stderr)
+        logger.warning("No .env files found. Using system environment variables only.")
+        logger.debug("Available system environment variables: %s", list(os.environ.keys()))
 
 # Load environment variables at module import
 load_environment()
+
+# 环境变量常量
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
+AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "https://msopenai.openai.azure.com")
+AZURE_OPENAI_MODEL_DEPLOYMENT = os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "gpt-4o-ms")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY", "")
+SILICONFLOW_API_URL = os.getenv("SILICONFLOW_API_URL", "https://api.siliconflow.cn/v1")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1")
+LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:8006/v1")
+
+# 创建一个httpx客户端，用于处理代理和超时
+http_client = httpx.Client(
+    timeout=60.0,
+    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+)
 
 def encode_image_file(image_path: str) -> tuple[str, str]:
     """
@@ -69,47 +103,80 @@ def encode_image_file(image_path: str) -> tuple[str, str]:
     return encoded_string, mime_type
 
 def create_llm_client(provider="openai"):
+    """创建LLM客户端
+    
+    Args:
+        provider (str): LLM提供商名称
+        
+    Returns:
+        客户端实例
+        
+    Raises:
+        ValueError: 如果未找到API密钥或提供商不受支持
+    """
     if provider == "openai":
-        api_key = os.getenv('OPENAI_API_KEY')
+        api_key = OPENAI_API_KEY
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
         return OpenAI(
-            api_key=api_key
+            api_key=api_key,
+            http_client=http_client
         )
     elif provider == "azure":
-        api_key = os.getenv('AZURE_OPENAI_API_KEY')
+        api_key = AZURE_OPENAI_API_KEY
         if not api_key:
             raise ValueError("AZURE_OPENAI_API_KEY not found in environment variables")
         return AzureOpenAI(
             api_key=api_key,
             api_version="2024-08-01-preview",
-            azure_endpoint="https://msopenai.openai.azure.com"
+            azure_endpoint=AZURE_ENDPOINT,
+            http_client=http_client
         )
     elif provider == "deepseek":
-        api_key = os.getenv('DEEPSEEK_API_KEY')
+        api_key = DEEPSEEK_API_KEY
         if not api_key:
             raise ValueError("DEEPSEEK_API_KEY not found in environment variables")
         return OpenAI(
             api_key=api_key,
             base_url="https://api.deepseek.com/v1",
+            http_client=http_client
         )
     elif provider == "anthropic":
-        api_key = os.getenv('ANTHROPIC_API_KEY')
+        api_key = ANTHROPIC_API_KEY
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
         return Anthropic(
             api_key=api_key
         )
     elif provider == "gemini":
-        api_key = os.getenv('GOOGLE_API_KEY')
+        api_key = GOOGLE_API_KEY
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
         genai.configure(api_key=api_key)
         return genai
     elif provider == "local":
         return OpenAI(
-            base_url="http://192.168.180.137:8006/v1",
-            api_key="not-needed"
+            base_url=LOCAL_LLM_URL,
+            api_key="not-needed",
+            http_client=http_client
+        )
+    elif provider == "siliconflow":
+        api_key = SILICONFLOW_API_KEY
+        if not api_key:
+            raise ValueError("SILICONFLOW_API_KEY not found in environment variables")
+        return OpenAI(
+            api_key=api_key,
+            base_url=SILICONFLOW_API_URL,
+            http_client=http_client
+        )
+    elif provider == "openrouter":
+        api_key = OPENROUTER_API_KEY
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+        return OpenAI(
+            api_key=api_key,
+            base_url=OPENROUTER_API_URL,
+            http_client=http_client
         )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -155,29 +222,37 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
             elif provider == "anthropic":
                 model = "claude-3-5-sonnet-20241022"
             elif provider == "gemini":
-                model = "gemini-pro"
+                model = "gemini-2.0-flash"
             elif provider == "local":
                 model = "Qwen/Qwen2.5-32B-Instruct-AWQ"
+            elif provider == "siliconflow":
+                model = "deepseek-ai/DeepSeek-R1"
+            elif provider == "openrouter":
+                model = "openai/gpt-4o"
         
         start_time = time.time()
         
-        if provider in ["openai", "local", "deepseek", "azure"]:
-            messages = [{"role": "user", "content": []}]
+        if provider in ["openai", "local", "deepseek", "azure", "siliconflow", "openrouter"]:
+            # 这些提供商都使用OpenAI兼容的API
+            system_message = {"role": "system", "content": "你是一个有用的助手。"}
+            user_message = {"role": "user", "content": []}
             
             # Add text content
-            messages[0]["content"].append({
+            user_message["content"].append({
                 "type": "text",
                 "text": prompt
             })
             
             # Add image content if provided
             if image_path:
-                if provider == "openai":
+                if provider in ["openai", "azure"]:
                     encoded_image, mime_type = encode_image_file(image_path)
-                    messages[0]["content"] = [
+                    user_message["content"] = [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{encoded_image}"}}
                     ]
+            
+            messages = [system_message, user_message]
             
             kwargs = {
                 "model": model,
@@ -186,10 +261,17 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
             }
             
             # Add o1-specific parameters
-            if model == "o1":
+            if model == "o1" or model.endswith("/o1"):
                 kwargs["response_format"] = {"type": "text"}
                 kwargs["reasoning_effort"] = "low"
                 del kwargs["temperature"]
+            
+            # Add OpenRouter-specific headers
+            if provider == "openrouter":
+                kwargs["extra_headers"] = {
+                    "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "http://localhost"),
+                    "X-Title": os.getenv("OPENROUTER_APP_TITLE", "LLM API Tool")
+                }
             
             response = client.chat.completions.create(**kwargs)
             thinking_time = time.time() - start_time
@@ -199,15 +281,27 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
-                reasoning_tokens=response.usage.reasoning_tokens if hasattr(response.usage, 'reasoning_tokens') and model.lower().startswith("o") else None
+                reasoning_tokens=response.usage.reasoning_tokens if hasattr(response.usage, 'reasoning_tokens') and (model.lower() == "o1" or model.lower().endswith("/o1")) else None
             )
             
             # Calculate cost
-            cost = get_token_tracker().calculate_openai_cost(
-                token_usage.prompt_tokens,
-                token_usage.completion_tokens,
-                model
-            )
+            if hasattr(get_token_tracker(), "calculate_cost"):
+                cost = get_token_tracker().calculate_cost(
+                    token_usage.prompt_tokens,
+                    token_usage.completion_tokens,
+                    model,
+                    provider
+                )
+            else:
+                # 兼容旧版本的token_tracker
+                if provider in ["openai", "azure", "deepseek", "local", "siliconflow", "openrouter"]:
+                    cost = get_token_tracker().calculate_openai_cost(
+                        token_usage.prompt_tokens,
+                        token_usage.completion_tokens,
+                        model
+                    )
+                else:
+                    cost = 0.0
             
             # Track the request
             api_response = APIResponse(
@@ -258,11 +352,20 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
             )
             
             # Calculate cost
-            cost = get_token_tracker().calculate_claude_cost(
-                token_usage.prompt_tokens,
-                token_usage.completion_tokens,
-                model
-            )
+            if hasattr(get_token_tracker(), "calculate_cost"):
+                cost = get_token_tracker().calculate_cost(
+                    token_usage.prompt_tokens,
+                    token_usage.completion_tokens,
+                    model,
+                    provider
+                )
+            else:
+                # 兼容旧版本的token_tracker
+                cost = get_token_tracker().calculate_claude_cost(
+                    token_usage.prompt_tokens,
+                    token_usage.completion_tokens,
+                    model
+                )
             
             # Track the request
             api_response = APIResponse(
@@ -278,21 +381,77 @@ def query_llm(prompt: str, client=None, model=None, provider="openai", image_pat
             return response.content[0].text
             
         elif provider == "gemini":
-            model = client.GenerativeModel(model)
-            response = model.generate_content(prompt)
+            model_instance = client.GenerativeModel(model)
+            
+            if image_path:
+                # 使用Gemini的多模态能力
+                image_data = None
+                with open(image_path, "rb") as image_file:
+                    image_data = image_file.read()
+                response = model_instance.generate_content([prompt, image_data])
+            else:
+                response = model_instance.generate_content(prompt)
+            
+            thinking_time = time.time() - start_time
+            
+            # Gemini 目前不提供标准的token统计，我们可以粗略估计
+            estimated_prompt_tokens = len(prompt.split()) * 1.3
+            estimated_completion_tokens = len(response.text.split()) * 1.3
+            
+            token_usage = TokenUsage(
+                prompt_tokens=int(estimated_prompt_tokens),
+                completion_tokens=int(estimated_completion_tokens),
+                total_tokens=int(estimated_prompt_tokens + estimated_completion_tokens)
+            )
+            
+            # Gemini价格估计
+            if hasattr(get_token_tracker(), "calculate_cost"):
+                cost = get_token_tracker().calculate_cost(
+                    token_usage.prompt_tokens,
+                    token_usage.completion_tokens,
+                    model,
+                    provider
+                )
+            else:
+                # 粗略估计Gemini成本
+                cost = (token_usage.prompt_tokens / 1000 * 0.0005) + (token_usage.completion_tokens / 1000 * 0.0015)
+            
+            api_response = APIResponse(
+                content=response.text,
+                token_usage=token_usage,
+                cost=cost,
+                thinking_time=thinking_time,
+                provider=provider,
+                model=model
+            )
+            get_token_tracker().track_request(api_response)
+            
             return response.text
             
     except Exception as e:
+        logger.error(f"Error querying LLM ({provider}/{model}): {e}")
         print(f"Error querying LLM: {e}", file=sys.stderr)
         return None
 
 def main():
     parser = argparse.ArgumentParser(description='Query an LLM with a prompt')
     parser.add_argument('--prompt', type=str, help='The prompt to send to the LLM', required=True)
-    parser.add_argument('--provider', choices=['openai','anthropic','gemini','local','deepseek','azure'], default='openai', help='The API provider to use')
+    parser.add_argument('--provider', 
+                       choices=['openai','anthropic','gemini','local','deepseek','azure','siliconflow','openrouter'], 
+                       default='openai', help='The API provider to use')
     parser.add_argument('--model', type=str, help='The model to use (default depends on provider)')
     parser.add_argument('--image', type=str, help='Path to an image file to attach to the prompt')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging')
     args = parser.parse_args()
+
+    # 设置日志级别
+    if args.verbose:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Verbose logging enabled")
+    
+    # 记录系统信息
+    logger.debug("Operating System: %s", platform.system())
+    logger.debug("Python Version: %s", platform.python_version())
 
     if not args.model:
         if args.provider == 'openai':
@@ -302,16 +461,27 @@ def main():
         elif args.provider == 'anthropic':
             args.model = "claude-3-5-sonnet-20241022"
         elif args.provider == 'gemini':
-            args.model = "gemini-2.0-flash-exp"
+            args.model = "gemini-2.0-flash"
         elif args.provider == 'azure':
-            args.model = os.getenv('AZURE_OPENAI_MODEL_DEPLOYMENT', 'gpt-4o-ms')  # Get from env with fallback
+            args.model = os.getenv('AZURE_OPENAI_MODEL_DEPLOYMENT', 'gpt-4o-ms')
+        elif args.provider == 'siliconflow':
+            args.model = "deepseek-ai/DeepSeek-R1"
+        elif args.provider == 'openrouter':
+            args.model = "openai/gpt-4o"
 
-    client = create_llm_client(args.provider)
-    response = query_llm(args.prompt, client, model=args.model, provider=args.provider, image_path=args.image)
-    if response:
-        print(response)
-    else:
-        print("Failed to get response from LLM")
+    try:
+        client = create_llm_client(args.provider)
+        logger.info(f"Querying {args.provider}/{args.model}")
+        response = query_llm(args.prompt, client, model=args.model, provider=args.provider, image_path=args.image)
+        if response:
+            print(response)
+        else:
+            print("未能从LLM获取响应", file=sys.stderr)
+            sys.exit(1)
+    except Exception as e:
+        logger.error(f"调用LLM时出错: {e}")
+        print(f"调用LLM时出错: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

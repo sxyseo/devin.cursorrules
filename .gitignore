@@ -4057,3 +4057,4 @@ test_token_logs/
 /note/tools/plan_exec_llm.py
 /note/tools/token_tracker.py
 /note/.env
+/.idea/

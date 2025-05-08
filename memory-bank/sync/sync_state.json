@@ -1,0 +1,15 @@
+{
+  "file_hashes": {
+    "activeContext.md": "df6ca5058c17cf20837695060a9b2a01628af7b05c50407d5275902094665f56",
+    "productContext.md": "bd1df9ce4caf74d4257ca6ef38ced3ac9adde431a32f6d72cbe772eff3cf6f87",
+    "progress.md": "fbb7c1e6e9b977142d84dd2ada8b18046d132faeda14c6418fada5cb42d0b81e",
+    "projectbrief.md": "266d940cf69e4776e1ef9c36a1b28abd69c429bb02bf8262e50a105e15d0c16e",
+    "systemPatterns.md": "72cc8ee589eca07b1231477dc5f8bf45f9d77324968dac2c6ff49bbe5837128f",
+    "techContext.md": "14eae62aedb86fdac1714f8e2df66813c53a6e99e2d86684b028a8c2f9ef76d3",
+    "extensions\\api_docs.md": "58bae8e0cc36c77fdaf9c71932334778382d5894e756f2a3ae3b45b2abb52c62",
+    "extensions\\deployment.md": "d22ebc9070768e5d650236d7745a8ce9aa296fb9e41d53c6f62cb2a5208e5b2d"
+  },
+  "last_sync": "2025-05-08T12:15:37.334029",
+  "last_version": "20250508_121537",
+  "sync_count": 3
+}
