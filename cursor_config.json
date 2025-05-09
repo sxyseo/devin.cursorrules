@@ -1,0 +1,12 @@
+{
+  "mcps": [
+    {
+      "command": "python",
+      "args": ["-m", "multi_agent_mcp", "--host", "127.0.0.1", "--port", "8001", "--simulation"],
+      "cwd": "D:/dev/devin.cursorrules_new",
+      "env": {
+        "PYTHONPATH": "D:/dev/devin.cursorrules_new;${PYTHONPATH}"
+      }
+    }
+  ]
+} 

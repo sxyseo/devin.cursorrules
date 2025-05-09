@@ -139,13 +139,19 @@ def ensure_memory_bank_dir() -> None:
     (MEMORY_BANK_DIR / "extensions").mkdir(exist_ok=True)
 
 def read_file(file_path: Path) -> str:
-    """读取文件内容"""
+    """读取文件内容
+    
+    Args:
+        file_path: 文件路径
+    
+    Returns:
+        文件内容字符串
+    """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
     except Exception as e:
-        print(f"读取文件 {file_path} 时出错: {e}", file=sys.stderr)
-        return f"无法读取文件 {file_path}: {e}"
+        raise Exception(f"读取文件失败: {e}")
 
 def write_file(file_path: Path, content: str) -> bool:
     """写入文件内容"""

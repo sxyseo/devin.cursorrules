@@ -17,6 +17,23 @@ import queue
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union, Tuple, Callable
 
+# 添加父级目录到sys.path，确保能找到依赖模块
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+# 导入通信管理器
+try:
+    from tools.communication_manager import CommunicationManager, QoSLevel, Priority
+except ImportError:
+    # 尝试相对导入
+    try:
+        from .communication_manager import CommunicationManager, QoSLevel, Priority
+    except ImportError:
+        # 尝试直接导入
+        from communication_manager import CommunicationManager, QoSLevel, Priority
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -847,6 +864,48 @@ class Executor:
         }
         
         return status
+
+    def _save_state(self) -> None:
+        """保存Executor状态到文件"""
+        try:
+            state = {
+                "executor_id": self.executor_id,
+                "version": "1.0",
+                "active_tasks": list(self.active_tasks.keys()),
+                "task_queue": [task_id for _, task_id in list(self.task_queue.queue)],
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            state_file = f"{self.executor_id}_state.json"
+            with open(state_file, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+                
+            logger.debug(f"已保存Executor状态到: {state_file}")
+        except Exception as e:
+            logger.error(f"保存状态时出错: {e}")
+    
+    def _load_state(self) -> bool:
+        """从文件加载Executor状态"""
+        try:
+            state_file = f"{self.executor_id}_state.json"
+            if not os.path.exists(state_file):
+                logger.info(f"状态文件不存在: {state_file}")
+                return False
+                
+            with open(state_file, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            
+            logger.info(f"已从 {state_file} 加载状态")
+            return True
+        except Exception as e:
+            logger.error(f"加载状态时出错: {e}")
+            return False
+
+    def is_running(self) -> bool:
+        """检查Executor是否正在运行"""
+        return (self.processing_thread is not None and 
+                self.processing_thread.is_alive() and 
+                not self.shutdown_flag.is_set())
 
 def main():
     """主函数，用于测试Executor功能"""

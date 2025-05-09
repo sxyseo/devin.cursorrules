@@ -1,157 +1,111 @@
-# Transform your $20 Cursor into a Devin-like AI Assistant
+# 增强型多智能体协作框架 MCP 服务器
 
-This repository gives you everything needed to supercharge your Cursor or Windsurf IDE with **advanced** agentic AI capabilities — similar to the $500/month Devin—but at a fraction of the cost. In under a minute, you'll gain:
+这是一个为 Cursor 设计的增强型多智能体协作框架 MCP 服务器。它实现了记忆银行、智能任务规划和执行等功能，使 Cursor 中的 Claude 具备持久记忆和多智能体协作能力。
 
-* Automated planning and self-evolution, so your AI "thinks before it acts" and learns from mistakes
-* Extended tool usage, including web browsing, search engine queries, and LLM-driven text/image analysis
-* [Experimental] Multi-agent collaboration, with o1 doing the planning, and regular Claude/GPT-4o doing the execution.
+## 功能特点
 
-## Why This Matters
+- **记忆银行工具**：读取、更新、列出、搜索和同步记忆文件
+- **任务管理工具**：创建任务、获取任务状态、列出所有任务、分析任务
+- **LLM 调用工具**：支持 OpenAI、Anthropic、DeepSeek、SiliconFlow 等多种提供商
+- **系统工具**：检查系统健康状态
+- **多种协议支持**：HTTP、WebSocket、SSE 和 stdio
+- **高可用性**：内置模拟模式，即使缺少依赖也能正常工作
 
-Devin impressed many by acting like an intern who writes its own plan, updates that plan as it progresses, and even evolves based on your feedback. But you don't need Devin's $500/month subscription to get most of that functionality. By customizing the .cursorrules file, plus a few Python scripts, you'll unlock the same advanced features inside Cursor.
+## 安装
 
-## Key Highlights
-
-1.	Easy Setup
-   
-   Copy the provided config files into your project folder. Cursor users only need the .cursorrules file. It takes about a minute, and you'll see the difference immediately.
-
-2.	Planner-Executor Multi-Agent (Experimental)
-
-   Our new [multi-agent branch](https://github.com/grapeot/devin.cursorrules/tree/multi-agent) introduces a high-level Planner (powered by o1) that coordinates complex tasks, and an Executor (powered by Claude/GPT) that implements step-by-step actions. This two-agent approach drastically improves solution quality, cross-checking, and iteration speed.
-
-3.	Extended Toolset
-
-   Includes:
-   
-   * Web scraping (Playwright)
-   * Search engine integration (DuckDuckGo)
-   * LLM-powered analysis
-
-   The AI automatically decides how and when to use them (just like Devin).
-
-4.	Self-Evolution
-
-   Whenever you correct the AI, it can update its "lessons learned" in .cursorrules. Over time, it accumulates project-specific knowledge and gets smarter with each iteration. It makes AI a coachable and coach-worthy partner.
-	
-## Usage
-
-1. Copy all files from this repository to your project folder
-2. For Cursor users: The `.cursorrules` file will be automatically loaded
-3. For Windsurf users: Use both `.windsurfrules` and `scratchpad.md` for similar functionality
-
-## Update: Multi-Agent Support (Experimental)
-
-This project includes experimental support for a multi-agent system that enhances Cursor's capabilities through a two-agent architecture:
-
-### Architecture
-
-- **Planner** (powered by OpenAI's o1 model): Handles high-level analysis, task breakdown, and strategic planning
-- **Executor** (powered by Claude): Implements specific tasks, runs tests, and handles implementation details
-
-[Actual .cursorrules file](https://github.com/grapeot/devin.cursorrules/blob/multi-agent/.cursorrules#L3)
-
-### Key Benefits
-
-1. **Enhanced Task Quality**
-   - Separation of strategic planning from execution details
-   - Better cross-checking and validation of solutions
-   - Iterative refinement through Planner-Executor communication
-
-2. **Improved Problem Solving**
-   - Planner can design comprehensive test strategies
-   - Executor provides detailed feedback and implementation insights
-   - Continuous communication loop for optimization
-
-### Real-World Example
-
-A real case study of the multi-agent system debugging the DuckDuckGo search functionality:
-
-1. **Initial Analysis**
-   - Planner designed a series of experiments to investigate intermittent search failures
-   - Executor implemented tests and collected detailed logs
-
-2. **Iterative Investigation**
-   - Planner analyzed results and guided investigation to the library's GitHub issues
-   - Identified a bug in version 6.4 that was fixed in 7.2
-
-3. **Solution Implementation**
-   - Planner directed version upgrade and designed comprehensive test cases
-   - Executor implemented changes and validated with diverse search scenarios
-   - Final documentation included learnings and cross-checking measures
-
-### Usage
-
-To use the multi-agent system:
-
-1. Switch to the `multi-agent` branch
-2. The system will automatically coordinate between Planner and Executor roles
-3. Planner uses `tools/plan_exec_llm.py` for high-level analysis
-4. Executor implements tasks and provides feedback through the scratchpad
-
-This experimental feature transforms the development experience from working with a single assistant to having both a strategic planner and a skilled implementer, significantly improving the depth and quality of task completion.
-
-## Setup
-
-1. Create Python virtual environment:
 ```bash
-# Create a virtual environment in ./venv
-python3 -m venv venv
+# 克隆仓库
+git clone https://github.com/yourusername/multi_agent_mcp.git
+cd multi_agent_mcp
 
-# Activate the virtual environment
-# On Unix/macOS:
-source venv/bin/activate
-# On Windows:
-.\venv\Scripts\activate
-```
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或
+venv\Scripts\activate  # Windows
 
-2. Configure environment variables:
-```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env with your API keys and configurations
-```
-
-3. Install dependencies:
-```bash
-# Install required packages
+# 安装依赖
 pip install -r requirements.txt
-
-# Install Playwright's Chromium browser (required for web scraping)
-python -m playwright install chromium
 ```
 
-## Tools Included
+## 使用方法
 
-- Web scraping with JavaScript support (using Playwright)
-- Search engine integration (DuckDuckGo)
-- LLM-powered text analysis
-- Process planning and self-reflection capabilities
-
-## Testing
-
-The project includes comprehensive unit tests for all tools. To run the tests:
+### 启动服务器
 
 ```bash
-# Make sure you're in the virtual environment
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+# 正常模式
+python -m multi_agent_mcp --host 127.0.0.1 --port 8000
 
-# Run all tests
-PYTHONPATH=. pytest -v tests/
+# 模拟模式 (无需依赖)
+python -m multi_agent_mcp --host 127.0.0.1 --port 8000 --simulation
 ```
 
-Note: Use `-v` flag to see detailed test output including why tests were skipped (e.g. missing API keys)
+### 配置 Cursor
 
-The test suite includes:
-- Search engine tests (DuckDuckGo integration)
-- Web scraper tests (Playwright-based scraping)
-- LLM API tests (OpenAI integration)
+在 Cursor 的配置文件中添加以下内容：
 
-## Background
+**Windows**: `%APPDATA%\Cursor\cursor_desktop_config.json`  
+**macOS**: `~/Library/Application Support/Cursor/cursor_desktop_config.json`  
+**Linux**: `~/.config/Cursor/cursor_desktop_config.json`
 
-For detailed information about the motivation and technical details behind this project, check out the blog post: [Turning $20 into $500 - Transforming Cursor into Devin in One Hour](https://yage.ai/cursor-to-devin-en.html)
+```json
+{
+  "agentic_mcp_url": null,
+  "agentic_mcp_command": [
+    "D:/path/to/venv/python.exe",
+    "-m",
+    "multi_agent_mcp",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8000",
+    "--simulation"
+  ],
+  "agentic_mcp_cwd": "D:/path/to/multi_agent_mcp",
+  "agentic_mcp_env": {
+    "PYTHONPATH": "D:/path/to/multi_agent_mcp"
+  },
+  "agentic_mcp_restart_frequency": 604800
+}
+```
 
-## License
+将路径替换为你实际的安装路径。
 
-MIT License
+### 使用功能
+
+一旦服务器运行并配置在 Cursor 中，你可以通过自然语言使用以下功能：
+
+#### 记忆银行
+
+- 读取记忆文件：`请读取记忆银行中的activeContext.md文件`
+- 更新记忆文件：`更新记忆银行中的progress.md文件为以下内容：...`
+- 列出记忆文件：`列出记忆银行中的所有文件`
+- 搜索记忆内容：`在记忆银行中搜索"多智能体协作"`
+
+#### 任务管理
+
+- 创建任务：`创建一个新任务：优化网站前端性能`
+- 获取任务状态：`查看任务123的状态`
+- 列出所有任务：`列出所有任务`
+- 分析任务：`分析这个任务：实现用户认证系统`
+
+#### LLM 功能
+
+- 调用 LLM：`使用deepseek模型回答这个问题：...`
+- 流式调用 LLM：`使用流式模式和anthropic模型回答：...`
+
+#### 系统功能
+
+- 检查健康状态：`检查系统健康状态`
+
+## API 文档
+
+服务器启动后，可以通过访问 `http://127.0.0.1:8000/docs` 查看完整的 API 文档。
+
+## 贡献
+
+欢迎提交 Pull Request 或 Issue。
+
+## 许可证
+
+MIT

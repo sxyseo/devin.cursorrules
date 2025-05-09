@@ -1,0 +1,175 @@
+{
+  "name": "多智能体协作MCP服务器",
+  "description": "基于FastMCP的增强型多智能体协作框架",
+  "version": "1.0.0",
+  "port": 8000,
+  "protocols": ["http", "ws", "sse", "stdio"],
+  "tools": [
+    {
+      "name": "read_memory",
+      "description": "读取记忆银行中的文件内容",
+      "parameters": [
+        {
+          "name": "file_path",
+          "type": "string",
+          "description": "要读取的文件路径，相对于记忆银行根目录"
+        }
+      ]
+    },
+    {
+      "name": "update_memory",
+      "description": "更新记忆银行中的文件内容",
+      "parameters": [
+        {
+          "name": "file_path",
+          "type": "string",
+          "description": "要更新的文件路径，相对于记忆银行根目录"
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "description": "新的文件内容"
+        }
+      ]
+    },
+    {
+      "name": "list_memory_files",
+      "description": "列出记忆银行中的所有文件",
+      "parameters": []
+    },
+    {
+      "name": "search_memory",
+      "description": "在记忆银行中进行语义搜索",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "description": "搜索查询"
+        },
+        {
+          "name": "top_k",
+          "type": "integer",
+          "description": "返回的结果数量",
+          "default": 5
+        }
+      ]
+    },
+    {
+      "name": "sync_memory",
+      "description": "同步记忆银行，创建快照",
+      "parameters": []
+    },
+    {
+      "name": "create_memory_file",
+      "description": "创建新的记忆银行文件",
+      "parameters": [
+        {
+          "name": "file_path",
+          "type": "string",
+          "description": "要创建的文件路径，相对于记忆银行根目录"
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "description": "文件内容，如果为null则使用默认模板",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "create_task",
+      "description": "创建新任务",
+      "parameters": [
+        {
+          "name": "description",
+          "type": "string",
+          "description": "任务描述"
+        },
+        {
+          "name": "priority",
+          "type": "string",
+          "description": "任务优先级 (high, medium, low)",
+          "default": "medium"
+        }
+      ]
+    },
+    {
+      "name": "get_task_status",
+      "description": "获取任务状态",
+      "parameters": [
+        {
+          "name": "task_id",
+          "type": "string",
+          "description": "任务ID"
+        }
+      ]
+    },
+    {
+      "name": "list_tasks",
+      "description": "列出所有任务",
+      "parameters": []
+    },
+    {
+      "name": "call_llm",
+      "description": "调用LLM模型",
+      "parameters": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "description": "提示词"
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "description": "提供商 (openai, anthropic, deepseek, siliconflow, local)",
+          "default": "openai"
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "description": "模型名称（可选）",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "stream_llm",
+      "description": "以流式方式调用LLM模型",
+      "parameters": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "description": "提示词"
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "description": "提供商 (openai, anthropic, deepseek, siliconflow, local)",
+          "default": "openai"
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "description": "模型名称（可选）",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "analyze_task",
+      "description": "使用强化LLM分析任务并生成子任务",
+      "parameters": [
+        {
+          "name": "task_description",
+          "type": "string",
+          "description": "任务描述"
+        }
+      ]
+    },
+    {
+      "name": "check_health",
+      "description": "检查系统健康状态",
+      "parameters": []
+    }
+  ]
+} 

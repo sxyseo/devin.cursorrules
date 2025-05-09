@@ -10,12 +10,13 @@ from pathlib import Path
 import sys
 import base64
 import logging
-from typing import Optional, Union, List, Dict, Any, Tuple
+from typing import Optional, Union, List, Dict, Any, Tuple, AsyncGenerator
 import mimetypes
 import time
 import platform
 import httpx
 import json
+import asyncio
 
 # 将当前目录添加到sys.path以解决直接运行脚本时的导入问题
 sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
@@ -226,23 +227,41 @@ def query_llm(prompt: str,
               image_path: Optional[str] = None,
               max_retries: int = 3,
               mock_mode: bool = False,
-              temperature: float = 0.7) -> APIResponse:
-    """
-    向LLM发送查询并返回响应
+              temperature: float = 0.7,
+              stream: bool = False) -> Union[APIResponse, AsyncGenerator]:
+    """调用大语言模型API
 
     Args:
         prompt: 提示词
-        client: LLM客户端，如果为None则会创建新的客户端
-        model: 要使用的模型名称
-        provider: LLM提供商
-        image_path: 可选的图像文件路径
+        client: LLM客户端对象，如果为None则创建新的客户端
+        model: 使用的模型名称，如果为None则使用默认模型
+        provider: 使用的提供商，默认为"openai"
+        image_path: 可选的图像路径，用于多模态交互
         max_retries: 最大重试次数
-        mock_mode: 是否使用模拟模式（用于测试）
-        temperature: 温度参数，控制响应的随机性
+        mock_mode: 是否使用模拟响应
+        temperature: 温度参数，控制输出的随机性 (0-1)
+        stream: 是否使用流式响应
 
     Returns:
-        APIResponse: 包含响应文本、令牌使用情况和其他元数据的对象
+        如果stream=False，返回API响应对象；如果stream=True，返回一个异步生成器
     """
+    if stream:
+        # 对于流式响应，直接返回异步生成器
+        return query_llm_stream(
+            prompt=prompt,
+            client=client,
+            model=model,
+            provider=provider,
+            image_path=image_path,
+            max_retries=max_retries,
+            mock_mode=mock_mode,
+            temperature=temperature
+        )
+    
+    # 非流式响应的逻辑
+    start_time = time.time()
+    logger.info(f"调用LLM API，提供商: {provider}，模型: {model or '默认'}，提示词长度: {len(prompt)}")
+    
     # 创建令牌追踪器
     token_tracker = get_token_tracker()
     
@@ -291,7 +310,6 @@ def query_llm(prompt: str,
         elif provider == "local":
             model = "Qwen/Qwen2.5-32B-Instruct-AWQ"
     
-    start_time = time.time()
     current_retry = 0
     last_error = None
     
@@ -487,138 +505,227 @@ def query_llm(prompt: str,
     
     return mock_response
 
-def main():
-    parser = argparse.ArgumentParser(description='调用大型语言模型API')
-    parser.add_argument('--prompt', type=str, help='提示词')
-    parser.add_argument('--provider', type=str, default='openai', 
-                        choices=['openai', 'anthropic', 'gemini', 'azure', 'deepseek', 'siliconflow', 'openrouter', 'local', 'mock'],
-                        help='LLM提供商')
-    parser.add_argument('--model', type=str, help='模型名称 (如果未提供，将使用提供商的默认模型)')
-    parser.add_argument('--image', type=str, help='要附加到提示词的图像文件路径')
-    parser.add_argument('--max-retries', type=int, default=3, help='最大重试次数')
-    parser.add_argument('--mock', action='store_true', help='使用模拟模式（不实际调用API）')
-    parser.add_argument('--verbose', '-v', action='store_true', help='详细日志输出')
-    parser.add_argument('--error-report', action='store_true', help='在发生错误时显示完整的错误报告')
-    parser.add_argument('--temperature', type=float, default=0.7, help='温度参数，控制输出的随机性 (0-1)')
-    
-    args = parser.parse_args()
-    
-    # 设置日志级别
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.setLevel(logging.DEBUG)
-    
-    # 如果没有通过命令行提供提示词，则从终端读取
-    if not args.prompt:
-        print("请输入提示词 (按Ctrl+D或Ctrl+Z结束):")
-        prompt_lines = []
-        try:
-            while True:
-                line = input()
-                prompt_lines.append(line)
-        except (KeyboardInterrupt, EOFError):
-            pass
-        args.prompt = "\n".join(prompt_lines)
-    
-    if not args.prompt:
-        parser.print_help()
-        sys.exit(1)
-    
-    try:
-        # 如果提供商是mock，设置mock_mode为True
-        mock_mode = args.mock or args.provider == 'mock'
-        if mock_mode:
-            logger.info("使用模拟模式")
-            if args.provider == 'mock':
-                args.provider = 'openai'  # 默认使用openai作为模拟提供商
-        
-        # 调用LLM
-        response = query_llm(
-            prompt=args.prompt,
-            provider=args.provider,
-            model=args.model,
-            image_path=args.image,
-            max_retries=args.max_retries,
-            mock_mode=mock_mode,
-            temperature=args.temperature
-        )
-        
-        # 打印响应文本
-        print(response.content)
-        
-        # 打印令牌使用情况
-        if args.verbose:
-            print("\n令牌使用情况:")
-            print(f"提示词令牌: {response.token_usage.prompt_tokens}")
-            print(f"补全令牌: {response.token_usage.completion_tokens}")
-            print(f"总令牌: {response.token_usage.total_tokens}")
-            print(f"延迟: {response.thinking_time:.2f}秒")
-            
-            # 显示会话总计
-            session_summary = get_token_tracker().get_session_summary()
-            print("\n会话总计:")
-            print(f"总请求数: {session_summary['total_requests']}")
-            print(f"总成本: ${session_summary['total_cost']:.4f}")
-            print(f"总令牌数: {session_summary['total_tokens']}")
-            
-    except Exception as e:
-        logger.error(f"调用LLM时出错: {e}")
-        
-        # 显示错误报告
-        if args.error_report and error_handler:
-            error_report = error_handler.get_error_report()
-            print("\n错误报告:")
-            print(json.dumps(error_report, indent=2, ensure_ascii=False))
-        
-        if args.verbose and hasattr(e, '__traceback__'):
-            import traceback
-            traceback.print_exception(type(e), e, e.__traceback__)
-        
-        sys.exit(1)
+async def query_llm_stream(
+    prompt: str, 
+    client=None, 
+    model=None, 
+    provider="openai", 
+    image_path: Optional[str] = None,
+    max_retries: int = 3,
+    mock_mode: bool = False,
+    temperature: float = 0.7
+) -> AsyncGenerator[Any, None]:
+    """以流式方式调用大语言模型API
 
-def mock_response(prompt: str, model: str = "mock-model") -> str:
-    """生成模拟响应，用于测试和调试
-    
     Args:
         prompt: 提示词
-        model: 模型名称
-        
-    Returns:
-        模拟的响应文本
+        client: LLM客户端对象，如果为None则创建新的客户端
+        model: 使用的模型名称，如果为None则使用默认模型
+        provider: 使用的提供商，默认为"openai"
+        image_path: 可选的图像路径，用于多模态交互
+        max_retries: 最大重试次数
+        mock_mode: 是否使用模拟响应
+        temperature: 温度参数，控制输出的随机性 (0-1)
+
+    Yields:
+        流式响应片段
     """
-    logger.info(f"Mock LLM called with prompt: {prompt[:30]}...")
+    logger.info(f"流式调用LLM API，提供商: {provider}，模型: {model or '默认'}，提示词长度: {len(prompt)}")
     
-    # 模拟token使用情况和成本计算
-    estimated_prompt_tokens = len(prompt.split()) * 1.3
-    estimated_completion_tokens = 150  # 假设响应大约有150个token
+    if mock_mode:
+        # 模拟流式响应
+        mock_responses = mock_stream_response(prompt)
+        for chunk in mock_responses:
+            await asyncio.sleep(0.1)  # 模拟网络延迟
+            yield chunk
+        return
+
+    # 创建客户端（如果未提供）
+    if client is None:
+        client = create_llm_client(provider=provider)
     
-    token_usage = TokenUsage(
-        prompt_tokens=int(estimated_prompt_tokens),
-        completion_tokens=estimated_completion_tokens,
-        total_tokens=int(estimated_prompt_tokens) + estimated_completion_tokens
-    )
+    # 设置默认模型（如果未提供）
+    if model is None:
+        if provider == "openai":
+            model = "gpt-4o"
+        elif provider == "anthropic":
+            model = "claude-3-sonnet-20240229"
+        elif provider == "deepseek":
+            model = "deepseek-chat"
+        elif provider == "siliconflow":
+            model = "deepseek-coder"
+        elif provider == "gemini":
+            model = "gemini-pro"
+        elif provider == "azure":
+            # 从环境变量中获取部署名称，默认为gpt-4o-ms
+            model = os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "gpt-4o-ms")
+        else:  # 本地模型
+            model = "Qwen/Qwen2.5-32B-Instruct-AWQ"
     
-    # 使用安全的成本计算方式，固定一个低成本
-    cost = 0.001  # 固定成本为0.001美元
+    current_retry = 0
+    last_error = None
     
-    # 记录模拟响应
-    api_response = APIResponse(
-        content="模拟响应",
-        token_usage=token_usage,
-        cost=cost,
-        thinking_time=0.5,
-        provider="mock",
-        model=model
-    )
+    while current_retry <= max_retries:
+        try:
+            # 处理多模态查询
+            if image_path:
+                if provider in ["openai", "azure"]:
+                    # 设置多模态消息
+                    base64_image, content_type = encode_image_file(image_path)
+                    
+                    # 创建带有图像的消息
+                    messages = [
+                        {"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
+                        ]}
+                    ]
+                    
+                    # 使用OpenAI流式API
+                    if provider == "openai":
+                        stream = await client.chat.completions.create(
+                            model=model,
+                            messages=messages,
+                            temperature=temperature,
+                            stream=True
+                        )
+                    else:  # Azure
+                        stream = await client.chat.completions.create(
+                            model=model,
+                            messages=messages,
+                            temperature=temperature,
+                            stream=True
+                        )
+                
+                elif provider == "anthropic":
+                    # Anthropic 的多模态支持
+                    base64_image, content_type = encode_image_file(image_path)
+                    
+                    stream = await client.messages.create(
+                        model=model,
+                        max_tokens=1024,
+                        temperature=temperature,
+                        stream=True,
+                        messages=[
+                            {
+                                "role": "user", 
+                                "content": [
+                                    {"type": "text", "text": prompt},
+                                    {"type": "image", "source": {"type": "base64", "media_type": content_type, "data": base64_image}}
+                                ]
+                            }
+                        ]
+                    )
+                
+                elif provider == "gemini":
+                    # Gemini 的多模态支持
+                    image_parts = [{"mime_type": mimetypes.guess_type(image_path)[0], "data": open(image_path, "rb").read()}]
+                    stream = client.generate_content(
+                        model=model,
+                        contents=[{"role": "user", "parts": [prompt, {"inline_data": image_parts[0]}]}],
+                        stream=True
+                    )
+                else:
+                    raise ValueError(f"提供商 {provider} 不支持多模态流式响应")
+            else:
+                # 常规文本查询
+                if provider == "openai":
+                    stream = await client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=temperature,
+                        stream=True
+                    )
+                elif provider == "anthropic":
+                    stream = await client.messages.create(
+                        model=model,
+                        max_tokens=1024,
+                        temperature=temperature,
+                        stream=True,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                elif provider == "deepseek":
+                    # DeepSeek流式API调用
+                    messages = [{"role": "user", "content": prompt}]
+                    stream = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        stream=True
+                    )
+                elif provider == "siliconflow":
+                    # SiliconFlow流式API调用
+                    messages = [{"role": "user", "content": prompt}]
+                    stream = client.completions.create(
+                        model=model,
+                        prompt=prompt,
+                        temperature=temperature,
+                        stream=True
+                    )
+                elif provider == "gemini":
+                    # Gemini流式API调用
+                    stream = client.generate_content(
+                        model=model,
+                        contents=[{"role": "user", "parts": [prompt]}],
+                        stream=True
+                    )
+                elif provider == "azure":
+                    # Azure OpenAI流式API调用
+                    stream = await client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=temperature,
+                        stream=True
+                    )
+                else:
+                    # 本地LLM流式调用
+                    raise NotImplementedError(f"流式调用尚未实现: {provider}")
+            
+            # 处理流式响应
+            async for chunk in stream:
+                yield chunk
+            
+            # 成功获取响应，跳出重试循环
+            break
+            
+        except Exception as e:
+            error_msg = f"流式调用LLM时出错 (重试 {current_retry}/{max_retries}): {str(e)}"
+            logger.error(error_msg)
+            if error_handler:
+                error_handler.handle_error(
+                    e, 
+                    category="API_ERROR", 
+                    severity="MEDIUM",
+                    context={
+                        "provider": provider,
+                        "model": model,
+                        "retry": current_retry,
+                        "stream": True
+                    }
+                )
+            last_error = e
+            current_retry += 1
+            if current_retry <= max_retries:
+                # 指数退避重试
+                await asyncio.sleep(2 ** current_retry)
     
-    try:
-        get_token_tracker().track_request(api_response)
-    except Exception as e:
-        logger.warning(f"无法记录token使用情况: {e}")
-    
-    # 根据提示词包含的关键字返回不同的模拟响应
+    # 如果所有重试都失败了，抛出异常
+    if current_retry > max_retries and last_error is not None:
+        logger.error(f"达到最大重试次数，无法获取流式响应: {last_error}")
+        raise last_error
+        
+def mock_stream_response(prompt: str) -> List[str]:
+    """生成模拟的流式响应
+
+    Args:
+        prompt: 提示词
+
+    Returns:
+        模拟的流式响应片段列表
+    """
+    # 构建模拟响应
     if "任务" in prompt and "规划" in prompt:
-        return """
+        full_response = """
 任务规划优化功能开发可以拆分为以下具体子任务：
 
 1. 需求分析与范围确定
@@ -655,9 +762,204 @@ def mock_response(prompt: str, model: str = "mock-model") -> str:
    - 整理最佳实践指南
 """
     elif "测试" in prompt:
-        return "这是一条模拟响应，用于测试llm_api模块的导入和基本功能。"
+        full_response = "这是一条模拟响应，用于测试llm_api模块的流式功能。"
     else:
-        return f"已收到您的提示: {prompt[:50]}...，这是一个模拟响应，仅用于测试。"
+        full_response = f"已收到您的提示: {prompt[:50]}...，这是一个模拟的流式响应，仅用于测试。"
+    
+    # 将完整响应分割成多个块
+    words = full_response.split()
+    chunks = []
+    current_chunk = []
+    
+    for word in words:
+        current_chunk.append(word)
+        if len(current_chunk) >= 5 or word.endswith(('.', '?', '!')):
+            chunks.append(' '.join(current_chunk))
+            current_chunk = []
+    
+    if current_chunk:
+        chunks.append(' '.join(current_chunk))
+    
+    return chunks
+
+def mock_response(prompt: str, model: str = "mock-model") -> str:
+    """提供模拟的LLM响应，用于测试和开发
+    
+    Args:
+        prompt: 提示词
+        model: 模型名称
+        
+    Returns:
+        str: 模拟的响应文本
+    """
+    logger.info(f"使用mock模式响应提示: '{prompt[:50]}...' (如果较长)")
+    
+    # 创建模拟响应
+    response = f"这是模拟模式下的回复。您的提问是: '{prompt}'\n\n"
+    response += f"在实际模式下，这会使用 {model} 模型进行处理。\n\n"
+    
+    # 添加一些针对特定提示的自定义响应
+    if "健康" in prompt or "health" in prompt.lower():
+        response += "系统健康状态良好。所有组件正常运行。"
+    elif "服务器" in prompt or "server" in prompt.lower():
+        response += "服务器使用FastMCP框架实现，与Cursor完全兼容，提供了丰富的工具功能，可以极大增强Cursor中Claude的能力。"
+        response += "通过这种方式，我们可以让Cursor具备持久化记忆、多智能体协作和强大的任务分解能力，更好地辅助复杂的开发工作。"
+    elif "记忆" in prompt or "memory" in prompt.lower():
+        response += "记忆银行是系统的核心组件，提供了持久化存储和检索功能，支持向量化搜索和多维度记忆管理。"
+    elif "错误" in prompt or "error" in prompt.lower():
+        response += "系统实现了完善的错误处理机制，包括错误分类、诊断和自动恢复功能，能够有效应对各种异常情况。"
+    elif "框架" in prompt or "framework" in prompt.lower():
+        response += "多智能体协作框架基于Planner-Executor模式，支持复杂任务的分解、规划和执行，大大提高了智能体的处理能力。"
+    else:
+        response += "这是一个通用的模拟响应。在实际部署中，您会得到真实的API响应。"
+    
+    # 跟踪token使用
+    tktrkr = get_token_tracker()
+    usage = TokenUsage(prompt_tokens=len(prompt.split()), completion_tokens=len(response.split()), total_tokens=len(prompt.split()) + len(response.split()))
+    tktrkr.track_usage("mock", model, usage)
+    
+    return response
+
+def main():
+    """主函数"""
+    parser = argparse.ArgumentParser(description='调用大型语言模型API')
+    parser.add_argument('--prompt', type=str, help='提示词')
+    parser.add_argument('--provider', type=str, default='openai', 
+                      choices=['openai', 'anthropic', 'gemini', 'azure', 'deepseek', 'siliconflow', 'openrouter', 'local', 'mock'],
+                      help='LLM提供商')
+    parser.add_argument('--model', type=str, help='模型名称 (如果未提供，将使用提供商的默认模型)')
+    parser.add_argument('--image', type=str, help='要附加到提示词的图像文件路径')
+    parser.add_argument('--max-retries', type=int, default=3, help='最大重试次数')
+    parser.add_argument('--mock', action='store_true', help='使用模拟模式（不实际调用API）')
+    parser.add_argument('--stream', action='store_true', help='使用流式响应模式')
+    parser.add_argument('--verbose', '-v', action='store_true', help='详细日志输出')
+    parser.add_argument('--error-report', action='store_true', help='在发生错误时显示完整的错误报告')
+    parser.add_argument('--temperature', type=float, default=0.7, help='温度参数，控制输出的随机性 (0-1)')
+    
+    args = parser.parse_args()
+    
+    # 设置日志级别
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+    
+    # 如果没有通过命令行提供提示词，则从终端读取
+    if not args.prompt:
+        print("请输入提示词 (按Ctrl+D或Ctrl+Z结束):")
+        prompt_lines = []
+        try:
+            while True:
+                line = input()
+                prompt_lines.append(line)
+        except (KeyboardInterrupt, EOFError):
+            pass
+        args.prompt = "\n".join(prompt_lines)
+    
+    if not args.prompt:
+        parser.print_help()
+        sys.exit(1)
+    
+    try:
+        # 如果提供商是mock，设置mock_mode为True
+        mock_mode = args.mock or args.provider == 'mock'
+        if mock_mode:
+            logger.info("使用模拟模式")
+            if args.provider == 'mock':
+                args.provider = 'openai'  # 默认使用openai作为模拟提供商
+        
+        if args.stream:
+            # 流式模式需要使用异步调用
+            import asyncio
+            
+            async def run_stream():
+                try:
+                    # 流式调用LLM
+                    async for chunk in query_llm_stream(
+                        prompt=args.prompt,
+                        provider=args.provider,
+                        model=args.model,
+                        image_path=args.image,
+                        max_retries=args.max_retries,
+                        mock_mode=mock_mode,
+                        temperature=args.temperature
+                    ):
+                        # 对于不同提供商，响应格式会不同，需要适配
+                        if hasattr(chunk, 'choices') and hasattr(chunk.choices[0], 'delta'):
+                            # OpenAI格式
+                            if chunk.choices[0].delta.content:
+                                print(chunk.choices[0].delta.content, end="", flush=True)
+                        elif hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text'):
+                            # Anthropic格式
+                            if chunk.delta.text:
+                                print(chunk.delta.text, end="", flush=True)
+                        elif isinstance(chunk, str):
+                            # 直接字符串
+                            print(chunk, end="", flush=True)
+                        else:
+                            # 尝试其他格式
+                            try:
+                                if hasattr(chunk, 'content'):
+                                    print(chunk.content, end="", flush=True)
+                                elif isinstance(chunk, dict) and 'content' in chunk:
+                                    print(chunk['content'], end="", flush=True)
+                            except:
+                                # 如果无法提取，直接打印整个对象
+                                print(chunk, end="", flush=True)
+                    
+                    # 流式响应结束后换行
+                    print()
+                except Exception as e:
+                    logger.error(f"流式调用LLM时出错: {e}")
+                    if args.verbose and hasattr(e, '__traceback__'):
+                        import traceback
+                        traceback.print_exception(type(e), e, e.__traceback__)
+            
+            # 运行异步函数
+            asyncio.run(run_stream())
+        else:
+            # 常规同步调用LLM
+            response = query_llm(
+                prompt=args.prompt,
+                provider=args.provider,
+                model=args.model,
+                image_path=args.image,
+                max_retries=args.max_retries,
+                mock_mode=mock_mode,
+                temperature=args.temperature
+            )
+            
+            # 打印响应文本
+            print(response.content)
+            
+            # 打印令牌使用情况
+            if args.verbose:
+                print("\n令牌使用情况:")
+                print(f"提示词令牌: {response.token_usage.prompt_tokens}")
+                print(f"补全令牌: {response.token_usage.completion_tokens}")
+                print(f"总令牌: {response.token_usage.total_tokens}")
+                print(f"延迟: {response.thinking_time:.2f}秒")
+                
+                # 显示会话总计
+                session_summary = get_token_tracker().get_session_summary()
+                print("\n会话总计:")
+                print(f"总请求数: {session_summary['total_requests']}")
+                print(f"总成本: ${session_summary['total_cost']:.4f}")
+                print(f"总令牌数: {session_summary['total_tokens']}")
+            
+    except Exception as e:
+        logger.error(f"调用LLM时出错: {e}")
+        
+        # 显示错误报告
+        if args.error_report and error_handler:
+            error_report = error_handler.get_error_report()
+            print("\n错误报告:")
+            print(json.dumps(error_report, indent=2, ensure_ascii=False))
+        
+        if args.verbose and hasattr(e, '__traceback__'):
+            import traceback
+            traceback.print_exception(type(e), e, e.__traceback__)
+        
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

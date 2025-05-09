@@ -149,7 +149,7 @@ class CommunicationManager:
         self.incoming_thread = None
         
         # 消息路由
-        self.route_table: Dict[str, str] = {}
+        self.route_table: Dict[str, Any] = {}
         
         # 统计信息
         self.stats = {
@@ -495,14 +495,15 @@ class CommunicationManager:
         self.incoming_queue.put(message_dict)
     
     def add_route(self, agent_id: str, agent_comm) -> None:
-        """添加路由条目
+        """添加路由
         
         Args:
-            agent_id: 智能体ID
-            agent_comm: 智能体通信管理器
+            agent_id: 目标智能体ID
+            agent_comm: 目标智能体的通信管理器
         """
         self.route_table[agent_id] = agent_comm
-        logger.info(f"添加路由: {agent_id}")
+        logger.info(f"添加路由: {self.agent_id} -> {agent_id}")
+        return True
     
     def get_stats(self) -> Dict[str, Any]:
         """获取通信统计信息"""

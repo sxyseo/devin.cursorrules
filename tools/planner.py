@@ -19,25 +19,61 @@ import threading
 import queue
 import argparse
 
+# 添加父级目录到sys.path，确保能找到依赖模块
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
 # 导入通信管理器
-from communication_manager import CommunicationManager, QoSLevel, Priority
+try:
+    from tools.communication_manager import CommunicationManager, QoSLevel, Priority
+except ImportError:
+    # 尝试相对导入（当tools是当前目录时）
+    try:
+        from .communication_manager import CommunicationManager, QoSLevel, Priority
+    except ImportError:
+        # 最后尝试直接导入（当前目录下的模块）
+        from communication_manager import CommunicationManager, QoSLevel, Priority
 
 # 导入记忆管理模块（实际系统中使用）
 try:
-    from memory_manager import read_memory
-    from memory_index import MemoryIndex
+    from tools.memory_manager import read_memory
+    from tools.memory_index import MemoryIndex
     memory_available = True
 except ImportError:
-    memory_available = False
-    print("记忆管理模块不可用，将使用模拟实现")
+    # 尝试相对导入
+    try:
+        from .memory_manager import read_memory
+        from .memory_index import MemoryIndex
+        memory_available = True
+    except ImportError:
+        # 尝试直接导入
+        try:
+            from memory_manager import read_memory
+            from memory_index import MemoryIndex
+            memory_available = True
+        except ImportError:
+            memory_available = False
+            print("记忆管理模块不可用，将使用模拟实现")
 
 # 导入LLM
 try:
-    from plan_exec_llm import query_planner_llm
+    from tools.plan_exec_llm import query_planner_llm
     llm_available = True
 except ImportError:
-    llm_available = False
-    print("规划LLM不可用，将使用模拟响应")
+    # 尝试相对导入
+    try:
+        from .plan_exec_llm import query_planner_llm
+        llm_available = True
+    except ImportError:
+        # 尝试直接导入
+        try:
+            from plan_exec_llm import query_planner_llm
+            llm_available = True
+        except ImportError:
+            llm_available = False
+            print("规划LLM不可用，将使用模拟响应")
 
 # 配置日志
 logging.basicConfig(
@@ -720,6 +756,23 @@ class Planner:
         except Exception as e:
             logger.error(f"分析任务 {task_id} 时出错: {e}")
             return False
+
+    def _handle_status_request(self, message):
+        """处理状态请求"""
+        return {
+            "status": "ok",
+            "planner_id": self.planner_id,
+            "is_running": self.is_running(),
+            "pending_tasks": len(self.pending_tasks),
+            "active_tasks": len(self.active_tasks),
+            "completed_tasks": len(self.completed_tasks)
+        }
+
+    def is_running(self) -> bool:
+        """检查Planner是否正在运行"""
+        return (self.processing_thread is not None and 
+                self.processing_thread.is_alive() and 
+                not self.shutdown_flag.is_set())
 
 class StrategicEngine:
     """战略层决策引擎，负责目标分解和资源评估"""
